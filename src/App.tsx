@@ -68,7 +68,7 @@ export default function App() {
   const glassDiagnostic = useCallback((d: GlassDiagnostic) => setOptics(p => { const status=d.error?'fallback':d.maps?'ready':'pending';return p.status===status&&p.maps===d.maps?p:{status,maps:d.maps} }),[])
   const [snapshot, setState] = useState(EMPTY)
   const [languageMode, setLanguageMode] = useState<LanguageMode>(api?.initialLanguageMode ?? getLanguage())
-  const [update, setUpdate] = useState<{ version: string } | null>(null)
+  const [update, setUpdate] = useState<import('./types').UpdateStatus>({ phase: 'idle' })
   const { section, group, startSearch, navigate: setSection, navigateGroup, back, forward, query, filter, genre, sort, year, region, setFilter, setGenre, setSort, setYear, setRegion } = useCatalogNavigation()
   const catalogPositions = useRef(new Map<string, CatalogPosition>())
   const tabsRoot = useRef<HTMLDivElement>(null)
@@ -155,7 +155,9 @@ export default function App() {
     if (!api) { notify(t("Для работы с каталогом откройте приложение NOVA для Windows.")); return }
     let active = true, receivedUpdate = false
     const stop = api.onState(next => { receivedUpdate = true; setState(next) })
-    void api.availableUpdate?.().then(update => { if (active) setUpdate(update) }).catch(() => {})
+    let receivedStatus = false
+    const stopUpdate = api.onUpdateStatus(status => { receivedStatus = true; setUpdate(status) })
+    void api.updateStatus().then(status => { if (active && !receivedStatus) setUpdate(status) }).catch(() => {})
     api.state().then(initial => { if (active && !receivedUpdate) setState(initial) })
       .catch(error => { if (active) notify(error.message) })
     const stopFeedback=api.onFeedback(feedback => setNotification({ id: ++nextNotification.current, feedback }))
@@ -165,7 +167,7 @@ export default function App() {
       else { setSearchDraft(queryRef.current); setSearchOpen(true) }
     })
     const stopReleases = api.onShowReleases(() => { api.home(); setPanelHistory([]); setDetail(null); setSection('releases') })
-    return () => { active = false; stop(); stopFeedback(); stopFocus(); stopReleases() }
+    return () => { active = false; stop(); stopUpdate(); stopFeedback(); stopFocus(); stopReleases() }
   }, [notify])
 
   const buildSearchIndex = useCallback(async (page = 1) => {
@@ -265,7 +267,11 @@ export default function App() {
   const watch = async (movie: Movie) => {
     if (!api || watching !== null) return
     setWatching(movie.id); setSearchOpen(false)
-    try { await api.watch(movie); setDetail(null) }
+    try {
+      await api.watch(movie)
+      setDetail(previous => previous?.id === movie.id ? null : previous)
+      setPanelHistory(previous => previous === panelHistory ? [] : previous)
+    }
     catch (e) { notify((e as Error).message) }
     finally { setWatching(null) }
   }
@@ -441,7 +447,7 @@ export default function App() {
     </div>
 
     </GlassContent>
-    {watching !== null && <div className="watch-progress"><RotateCw className="spin" size={17} /><div>{t("Ищем доступные плееры")}<span>{all.find(m => m.id === watching)?.title || t("Кинопоиск · {0}", watching)}</span></div></div>}
+    {watching !== null && !detail && <div className="watch-progress" role="status"><RotateCw className="spin" size={17} /><div>{t("Ищем доступные плееры")}<span>{all.find(m => m.id === watching)?.title || t("Кинопоиск · {0}", watching)}</span></div></div>}
     {notification && <FeedbackToast key={notification.id} notice={notification.feedback} message={notification.message}
       close={() => setNotification(current => current?.id === notification.id ? null : current)}
       undo={notification.feedback?.undoToken ? () => api!.undoFeedback(notification.feedback!.undoToken!) : undefined}/>}

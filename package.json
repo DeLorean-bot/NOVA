@@ -1,7 +1,7 @@
 {
   "name": "kadr-desktop",
   "productName": "NOVA",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Фильмы и сериалы в одном окне",
   "author": "NOVA",
   "private": true,
@@ -18,6 +18,7 @@
   "dependencies": {
     "@fontsource-variable/geologica": "^5.3.0",
     "@glass-sdk/liquid-glass": "~0.0.2",
+    "electron-updater": "6.8.11",
     "lucide-react": "0.468.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
@@ -37,7 +38,7 @@
     "appId": "local.kadr.desktop",
     "productName": "NOVA",
     "directories": {
-      "output": "release/0.8.3"
+      "output": "release/0.8.4"
     },
     "files": [
       "dist/**/*",
@@ -61,8 +62,16 @@
       "artifactName": "NOVA-${version}-win-x64.${ext}"
     },
     "asar": true,
+    "electronUpdaterCompatibility": ">=6.8.11",
+    "publish": {
+      "provider": "github",
+      "owner": "DeLorean-bot",
+      "repo": "NOVA",
+      "private": false
+    },
     "compression": "normal",
     "nsis": {
+      "differentialPackage": "store-asar",
       "oneClick": false,
       "perMachine": false,
       "allowElevation": false,

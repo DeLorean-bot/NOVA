@@ -6,7 +6,9 @@ const { app, BrowserWindow, WebContentsView, ipcMain, session, shell, Menu, webF
 const englishMessages = require('./locales/en.json');
 const { resolveLanguage } = require('./language.cjs');
 const { checkForUpdate } = require('./releases-update.cjs');
+const { createAppUpdates } = require('./app-updates.cjs');
 const path = require('node:path');
+const { existsSync } = require('node:fs');
 const fs = require('node:fs/promises');
 const { pathToFileURL } = require('node:url');
 const { SOURCE, API, webUrl, contentInfo, movieId, normalizeMovie, parseBlacklist, normalizePlayers } = require('./core.cjs');
@@ -45,7 +47,7 @@ let state = { profile: readProfile(null, nativeImage.createFromDataURL), favorit
 let language = 'ru';
 let languageMode = 'system';
 let languageWrite = Promise.resolve();
-let updateRequest;
+let appUpdates, updateTimer;
 let playerSessionReady;
 const uiText = (message, ...values) => {
   const template = language === 'en' && Object.hasOwn(englishMessages, message) ? englishMessages[message] : message;
@@ -522,10 +524,11 @@ function registerHandlers() {
   });
   handle('upcoming', upcoming);
   handle('state', () => snapshot());
-  handle('available-update', () => updateRequest ?? null);
-  handle('open-update', async () => {
-    const update = await updateRequest;
-    if (update) await shell.openExternal(update.url);
+  handle('update-status', () => appUpdates?.state ?? { phase: 'idle' });
+  handle('check-update', () => { void appUpdates?.check(); });
+  handle('apply-update', async () => {
+    await Promise.all([writeQueue, languageWrite, appearanceStore?.flush()]);
+    await appUpdates?.apply();
   });
   handle('language', async value => {
     if (!['system', 'ru', 'en'].includes(value)) throw new Error('Неизвестный язык');
@@ -670,7 +673,9 @@ function registerHandlers() {
     const id = remoteTab({ title: movie.title, url: providers[0].url, kind: 'player', movie, providers });
     const old = state.history.find(m => m.id === movie.id);
     state.history = [{ ...old, ...movie, watchedSeconds: old?.watchedSeconds || 0, openedAt: new Date().toISOString() }, ...state.history.filter(m => m.id !== movie.id)].slice(0, 80);
-    await save(); emit(); return id;
+    emit();
+    void save().catch(error => console.error('Could not save viewing history:', error.message));
+    return id;
   });
   handle('provider', (provider, translation) => {
     const t = tabs.get(active);
@@ -866,7 +871,19 @@ async function createWindow() {
   win.on('closed', () => { nativeMenus?.dispose(); globalShortcut.unregister('Escape'); globalShortcut.unregister('F11'); for (const t of tabs.values()) if (!t.view.webContents.isDestroyed()) t.view.webContents.close(); tabs.clear(); win = null; });
   if (testProfile) win.showInactive();
   else win.show();
-  if (!testProfile) updateRequest = checkForUpdate(chromiumFetch, app.getVersion()).catch(() => null);
+  if (!testProfile) {
+    const installed = process.platform === 'win32' && app.isPackaged &&
+      existsSync(path.join(path.dirname(process.execPath), 'Uninstall NOVA.exe'));
+    appUpdates = createAppUpdates({
+      updater: installed ? require('electron-updater').autoUpdater : null,
+      lookup: () => checkForUpdate(chromiumFetch, app.getVersion()),
+      openExternal: url => shell.openExternal(url),
+      publish: status => { if (win && !win.isDestroyed()) win.webContents.send('kadr:update-status', status); },
+    });
+    void appUpdates.check();
+    updateTimer = setInterval(() => { void appUpdates.check(); }, 6 * 60 * 60 * 1000);
+    updateTimer.unref();
+  }
   await win.loadFile(localPage);
   playbackTimer = setInterval(pollPlayback, 4000); playbackTimer.unref();
   releasesTimer = setInterval(() => checkReleases().catch(() => {}), 30 * 60 * 1000); releasesTimer.unref();
@@ -882,5 +899,5 @@ else {
   });
   app.whenReady().then(async () => { registerHandlers(); await createWindow(); });
   app.on('window-all-closed', () => app.quit());
-  app.on('before-quit', event => { clearInterval(playbackTimer); clearInterval(releasesTimer); if (writeQueue) { event.preventDefault(); const pending = save(); writeQueue = null; Promise.allSettled([pending, appearanceStore?.flush()]).then(() => app.quit()); } });
+  app.on('before-quit', event => { clearInterval(playbackTimer); clearInterval(releasesTimer); clearInterval(updateTimer); if (writeQueue) { event.preventDefault(); const pending = save(); writeQueue = null; Promise.allSettled([pending, languageWrite, appearanceStore?.flush()]).then(() => app.quit()); } });
 }

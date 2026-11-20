@@ -36,9 +36,10 @@ export function FeedbackToast({ notice, message, close, undo }: Props) {
   }, [dismiss, hovered, focused, busy, error])
 
   const text = t(error || notice?.message || message || '')
-  return createPortal(<GlassSurface ref={popup} className="feedback-toast nl-feedback" radius={16} material="regular" refraction={16} popover="manual"
+  return createPortal(<div ref={popup} className="feedback-toast nl-feedback" popover="manual"
     onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)}
     onFocusCapture={() => setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false) }}>
+    <GlassSurface render={<span/>} className="notice-refraction" radius={16} material="clear" refraction={12} aria-hidden="true"/>
     <span className="feedback-toast-art" aria-hidden="true">{notice ? <MoviePoster movie={notice.movie} lazy={false} decorative/> : <Info size={18}/>}</span>
     <div className="feedback-toast-copy" role="status" aria-atomic="true">
       {notice && <strong title={notice.movie.title}>{notice.movie.title}</strong>}
@@ -51,5 +52,5 @@ export function FeedbackToast({ notice, message, close, undo }: Props) {
       finally { setBusy(false) }
     }}>{t("Отменить")}</button>}
     <button className="icon-button feedback-close" aria-label={t("Закрыть уведомление")} onClick={dismiss}><X size={17}/></button>
-  </GlassSurface>, container)
+  </div>, container)
 }

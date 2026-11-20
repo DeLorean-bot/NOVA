@@ -1,10 +1,10 @@
 import { t, type LanguageMode } from './i18n'
 import { Select } from './Select'
 import { version } from '../package.json'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { GlassToggle } from './GlassToggle'
 import { Keyboard } from './icons'
-import type { AppState } from './types'
+import type { AppState, UpdateStatus } from './types'
 import brand from './assets/nova-mark.png'
 
 export default function SettingsDialog({ state, changeMotion, changeBackground, languageMode, changeLanguage, update }: {
@@ -13,7 +13,7 @@ export default function SettingsDialog({ state, changeMotion, changeBackground, 
   changeBackground: (value: boolean) => void
   languageMode: LanguageMode
   changeLanguage: (language: LanguageMode) => Promise<void>
-  update?: { version: string } | null
+  update: UpdateStatus
 }) {
   const heading = useRef<HTMLHeadingElement>(null)
   useEffect(() => { heading.current?.focus({ preventScroll: true }) }, [])
@@ -28,7 +28,40 @@ export default function SettingsDialog({ state, changeMotion, changeBackground, 
       <h2 className="settings-subtitle"><Keyboard size={19}/>{t("Быстрые действия")}</h2>
       <dl className="shortcut-list"><div><dt>{t("Поиск")}</dt><dd><kbd>Ctrl</kbd><kbd>L</kbd></dd></div><div><dt>{t("Полный экран приложения")}</dt><dd><kbd>F11</kbd></dd></div><div><dt>{t("Полный экран плеера")}</dt><dd><kbd>F</kbd></dd></div><div><dt>{t("Назад / закрыть")}</dt><dd><kbd>Esc</kbd></dd></div></dl>
       <div className="settings-about"><img className="nova-mark" src={brand} alt=""/><div><h2 className="title-1">NOVA</h2><p>{t("Версия")} {version}</p></div></div>
-      {update && <button className="quiet-button" onClick={() => void window.kadr?.openUpdate?.().catch(() => {})}>{t('Доступна версия {0}', update.version)}</button>}
+      {window.kadr && <UpdatePanel update={update}/>}
     </div>
+  </section>
+}
+
+function UpdatePanel({ update }: { update: UpdateStatus }) {
+  const [actionFailed, setActionFailed] = useState(false)
+  const status = update.phase
+  const label = status === 'checking' ? t('Проверяем обновления…')
+    : status === 'downloading' ? t('Загружаем NOVA {0}', update.version)
+    : status === 'ready' ? t('NOVA {0} готова к установке', update.version)
+    : status === 'installing' ? t('Устанавливаем NOVA {0}…', update.version)
+    : status === 'external' ? t('Доступна версия {0}', update.version)
+    : status === 'error' ? t('Не удалось загрузить обновление.')
+    : status === 'current' ? t('Установлена последняя версия.')
+    : ''
+  const action = status === 'external' ? t('Открыть релиз')
+    : status === 'ready' ? t('Обновить и перезапустить')
+    : ['downloading', 'installing', 'checking'].includes(status) ? null
+    : t('Проверить обновления')
+  return <section className="settings-update" aria-labelledby="settings-update-title">
+    <h2 id="settings-update-title">{t('Обновления')}</h2>
+    {label && <p role="status">{label}</p>}
+    {status === 'downloading' && <div className="update-progress">
+      <progress max={100} value={update.progress ?? undefined} aria-label={t('Загрузка обновления')}/>
+      {update.progress !== null && <span aria-hidden="true">{update.progress}%</span>}
+    </div>}
+    {action && <button className={status === 'ready' ? 'primary-button' : 'quiet-button'} onClick={async () => {
+      setActionFailed(false)
+      try {
+        if (status === 'ready' || status === 'external') await window.kadr!.applyUpdate()
+        else await window.kadr!.checkUpdate()
+      } catch { setActionFailed(true) }
+    }}>{action}</button>}
+    {actionFailed && <p role="alert">{t('Не удалось выполнить действие')}</p>}
   </section>
 }

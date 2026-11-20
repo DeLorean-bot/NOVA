@@ -21,8 +21,14 @@ contextBridge.exposeInMainWorld('kadr', {
   initialGlassBackground: !process.argv.includes('--kadr-glass-background=off'),
   initialSidebarCollapsed: process.argv.includes('--kadr-sidebar=compact'),
   state: () => invoke('state'),
-  availableUpdate: () => invoke('available-update'),
-  openUpdate: () => invoke('open-update'),
+  updateStatus: () => invoke('update-status'),
+  checkUpdate: () => invoke('check-update'),
+  applyUpdate: () => invoke('apply-update'),
+  onUpdateStatus: listener => {
+    const status = (_, value) => listener(value);
+    ipcRenderer.on('kadr:update-status', status);
+    return () => ipcRenderer.removeListener('kadr:update-status', status);
+  },
   catalog: (type, page) => invoke('catalog', type, page),
   search: (query, page = 1) => invoke('search', query, page),
   browse: (type, page = 1, options) => invoke('browse', type, page, options),

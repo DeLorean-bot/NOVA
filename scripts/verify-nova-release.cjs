@@ -72,7 +72,7 @@ async function verify() {
     const toast = page.locator('.feedback-toast:popover-open');
     await toast.waitFor();
     await toast.getByText('Added to your collection',{exact:true}).waitFor();
-    assert.ok(await toast.evaluate(el => el.classList.contains('lg-surface') && getComputedStyle(el).backdropFilter.includes('blur')));
+    assert.ok(await toast.evaluate(el => el.querySelector('.notice-refraction.lg-surface') && getComputedStyle(el).backdropFilter.includes('blur')));
     await toast.getByRole('button',{name:'Dismiss notification'}).click();
     await toast.waitFor({state:'detached'});
 

@@ -1,5 +1,10 @@
 import type { Language, LanguageMode } from './i18n'
 
+export type UpdateStatus =
+  | { phase: 'idle' | 'checking' | 'current' | 'error' }
+  | { phase: 'external' | 'ready' | 'installing'; version: string }
+  | { phase: 'downloading'; version: string; progress: number | null }
+
 export type Movie = {
   id: number; type: 'film' | 'series'; title: string; original: string; year: number | null;
   poster: string; cover: string; rating: number | null; age: string; genres: string[]; description: string;
@@ -48,8 +53,10 @@ export type API = {
   initialGlassBackground: boolean;
   initialSidebarCollapsed: boolean;
   state(): Promise<AppState>; catalog(type: 'films' | 'series', page: number): Promise<Catalog>;
-  availableUpdate?(): Promise<{ version: string } | null>;
-  openUpdate?(): Promise<void>;
+  updateStatus(): Promise<UpdateStatus>;
+  checkUpdate(): Promise<void>;
+  applyUpdate(): Promise<void>;
+  onUpdateStatus(listener: (status: UpdateStatus) => void): () => void;
   search(query: string, page?: number): Promise<{ movies: Movie[]; nextPage: number | null }>;
   browse(type: 'films' | 'series', page?: number, options?: { year?: number; order?: 'date' | 'year' }): Promise<{ movies: Movie[]; nextPage: number | null }>;
   recommendations(refresh?: boolean): Promise<{ movies: Movie[]; added: number; hasMore: boolean; seen: number[] }>;
