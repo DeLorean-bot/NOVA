@@ -1,0 +1,78 @@
+{
+  "name": "kadr-desktop",
+  "productName": "NOVA",
+  "version": "0.8.2",
+  "description": "Фильмы и сериалы в одном окне",
+  "author": "NOVA",
+  "private": true,
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "start": "npm run build && node scripts/start.cjs",
+    "build": "vite build",
+    "test": "node --test tests/*.test.cjs",
+    "check": "tsc --noEmit",
+    "pack": "npm run build && electron-builder --win --dir",
+    "dist": "npm run build && electron-builder --win"
+  },
+  "dependencies": {
+    "@fontsource-variable/geologica": "^5.3.0",
+    "@glass-sdk/liquid-glass": "~0.0.2",
+    "lucide-react": "0.468.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron": "45.2.1",
+    "electron-builder": "26.18.0",
+    "playwright": "^1.56.0",
+    "postcss": "^8.5.6",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.5"
+  },
+  "build": {
+    "appId": "local.kadr.desktop",
+    "productName": "NOVA",
+    "directories": {
+      "output": "release/0.8.2"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "vendor/**/*",
+      "filters/**/*",
+      "licenses/**/*",
+      "THIRD_PARTY_NOTICES.md",
+      "package.json",
+      "LICENSE",
+      "build/icon*.png"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "signAndEditExecutable": true,
+      "icon": "build/icon.ico",
+      "signExecutable": false,
+      "artifactName": "NOVA-${version}-win-x64.${ext}"
+    },
+    "asar": true,
+    "compression": "normal",
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "NOVA",
+      "artifactName": "NOVA-Setup-${version}.exe",
+      "deleteAppDataOnUninstall": false
+    }
+  },
+  "license": "GPL-3.0-only"
+}

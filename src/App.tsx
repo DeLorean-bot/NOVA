@@ -1,0 +1,531 @@
+import { getLanguage, setLanguage, t, useLanguage, type Language } from './i18n'
+import { MoviePoster } from './MoviePoster'
+import { matchesRegion, regionOptions } from './catalog-regions'
+import { PosterHover } from './PosterHover'
+import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type CSSProperties } from 'react'
+import { Bell, ArrowDown, ArrowLeft, ArrowRight, Bookmark, Collection, Check, ChevronRight, Clapperboard, Clock3, ExternalLink, Film, Globe2, House, Info, Maximize2, Play, Plus, RotateCw, Search, Settings2, Settings, ShieldCheck, ShieldOff, Trash2, Tv, X, TrendingUp, CalendarDays } from './icons'
+import type { AppState, Movie, RemoteTab } from './types'
+import { useCatalogNavigation, type Section } from './useCatalogNavigation'
+import { SelectionHighlight } from './SelectionHighlight'
+import { AppNavigation, SectionNavigation, PremiereNavigation, FormatTabs, PageFrame } from './AppNavigation'
+import { visitPanel, type PanelPage, type NavigationGroup } from './navigation-model'
+import { useInputModality } from './useInputModality'
+import type { CatalogPosition } from './CatalogScene'
+import { useAppearance } from './useAppearance'
+import { version } from '../package.json'
+import { Select } from './Select'
+import { searchMovies } from './search'
+import { recommendations } from './recommendations'
+import { useRecommendations } from './useRecommendations'
+import { allowedSuggestion, EMPTY_TASTE } from './taste'
+import { SearchDialog } from './SearchDialog'
+import { UpcomingPage } from './UpcomingPage'
+import { RecommendationShelf } from './RecommendationShelf'
+import { StartupIntro } from './StartupIntro'
+import { ContentNotice } from './ContentNotice'
+import { FeedbackToast } from './FeedbackToast'
+import { PlayerMenu } from './PlayerMenu'
+import { GlassScene, GlassContent, type GlassDiagnostic } from '@glass-sdk/liquid-glass'
+import { useReducedMotion } from './kit/reduced-motion'
+const SettingsDialog = lazy(() => import('./SettingsDialog'))
+const TasteDialog = lazy(() => import('./TasteDialog'))
+const MovieDetails = lazy(() => import('./MovieDetails'))
+const ProfilePage = lazy(() => import('./ProfilePage'))
+const CatalogScene = lazy(() => import('./CatalogScene'))
+
+const EMPTY: AppState = { profile: {name: 'Моя NOVA', avatar: ''}, favorites: [], history: [], releases: [], sites: [], tabs: [], active: null, source: 'https://brogiro.cfd', theme: window.kadr?.initialTheme || 'light', motion: window.kadr?.initialMotion !== false, glassBackground: window.kadr?.initialGlassBackground !== false, taste:EMPTY_TASTE, sidebarCollapsed: Boolean(window.kadr?.initialSidebarCollapsed), immersive: false, fullscreen: false }
+const api = window.kadr
+const INITIAL_APPEARANCE = { theme: EMPTY.theme, motion: EMPTY.motion, glassBackground: EMPTY.glassBackground }
+const names: Record<Section, string> = { home: 'Обзор', search: 'Поиск', trending: 'В тренде', new: 'Новинки', films: 'Фильмы', series: 'Сериалы', favorites: 'Моя коллекция', history: 'Недавнее', releases: 'Скоро выйдет' }
+type BrowseState = { movies: Movie[]; nextPage: number | null; loading: boolean; error: string }
+type FeedType = 'films' | 'series'
+type BrowseOptions = NonNullable<Parameters<NonNullable<typeof api>['browse']>[2]>
+const catalogYear = new Date().getFullYear()
+const recentYearOptions = [catalogYear, catalogYear - 1].map(year => ({ value: String(year), label: String(year) }))
+const yearOptions = [{ value: 'all', label: 'Все годы' }, ...Array.from({ length: catalogYear - 1888 + 1 }, (_, i) => ({
+  value: String(catalogYear - i), label: String(catalogYear - i),
+}))]
+const browseKey = (type: FeedType, options: BrowseOptions) => `browse:${type}:${options.year ?? 'all'}:${options.order ?? 'date'}`
+const BROWSE_EMPTY: BrowseState = { movies: [], nextPage: 1, loading: false, error: '' }
+
+function manualMovie(id: number, type: 'film' | 'series' = 'film', title = t("Кинопоиск · {0}", id)): Movie {
+  return { id, type, title, original: '', year: null, poster: '', cover: '', rating: null, age: '', genres: [], description: '' }
+}
+function getContent(value: string) {
+  try {
+    const u = new URL(value)
+    if (!['kinopoisk.ru', 'www.kinopoisk.ru', 'brogiro.cfd', 'www.brogiro.cfd', 'kinokino.vip', 'www.kinokino.vip'].includes(u.hostname)) return null
+    const m = u.pathname.match(/^\/(film|series)\/(\d+)(?:\/|$)/)
+    return m ? { type: m[1] as 'film' | 'series', id: Number(m[2]) } : null
+  } catch { return null }
+}
+
+export default function App() {
+  useInputModality()
+  useLanguage()
+  const reducedMotion = useReducedMotion()
+  const [optics,setOptics] = useState({status:'pending',maps:0})
+  const glassDiagnostic = useCallback((d: GlassDiagnostic) => setOptics(p => { const status=d.error?'fallback':d.maps?'ready':'pending';return p.status===status&&p.maps===d.maps?p:{status,maps:d.maps} }),[])
+  const [snapshot, setState] = useState(EMPTY)
+  const [update, setUpdate] = useState<{ version: string } | null>(null)
+  const { section, group, startSearch, navigate: setSection, navigateGroup, back, forward, query, filter, genre, sort, year, region, setFilter, setGenre, setSort, setYear, setRegion } = useCatalogNavigation()
+  const catalogPositions = useRef(new Map<string, CatalogPosition>())
+  const tabsRoot = useRef<HTMLDivElement>(null)
+  const [navigationInstant, setNavigationInstant] = useState(false)
+  const catalogViewKey = JSON.stringify([section, query, filter, genre, sort, year, region])
+  const [movies, setMovies] = useState<Record<'films' | 'series', Movie[]>>({ films: [], series: [] })
+  const [browse, setBrowse] = useState<Record<string, BrowseState>>({})
+  const [pages, setPages] = useState({ films: 0, series: 0 })
+  const [more, setMore] = useState({ films: true, series: true })
+  const [loading, setLoading] = useState({ films: false, series: false })
+  const [errors, setErrors] = useState({ films: '', series: '' })
+  const [searchOpen, setSearchOpen] = useState(false)
+  useEffect(()=>{ if(!searchOpen)return; const id='search-overlay';window.dispatchEvent(new CustomEvent('kadr:select-open',{detail:{id,open:true,nativeSafe:false}}));return()=>{window.dispatchEvent(new CustomEvent('kadr:select-open',{detail:{id,open:false}}))} },[searchOpen])
+  const [searchDraft, setSearchDraft] = useState('')
+  const activeQuery = searchOpen ? searchDraft : query
+  const queryRef = useRef(query); queryRef.current = query
+  const [heroIndex, setHeroIndex] = useState(() => Math.floor(Math.random() * 8))
+  const [heroPaused, setHeroPaused] = useState(false)
+  const [badCovers, setBadCovers] = useState<Set<number>>(new Set())
+  const [panelHistory, setPanelHistory] = useState<PanelPage[]>([])
+  const panel = panelHistory.at(-1)
+  const profileOpen = panel === 'profile', settingsOpen = panel === 'settings', tasteOpen = panel === 'taste'
+  const openPanel = (next: PanelPage) => { setDetail(null); setPanelHistory(old => visitPanel(old, next)) }
+  const backPanel = () => setPanelHistory(old => old.slice(0, -1))
+  const [releaseTab, setReleaseTab] = useState<'calendar' | 'following'>('calendar')
+  const [notice, setNotice] = useState<Movie | null>(null)
+  const [detail, setDetail] = useState<Movie | null>(null)
+  const [notification, setNotification] = useState<{ id: number; message?: string; feedback?: import('./types').FeedbackNotice } | null>(null)
+  const nextNotification = useRef(0)
+  const [selectOpen, setSelectOpen] = useState(false)
+  const [unsafeMenu, setUnsafeMenu] = useState(false)
+  const [remoteStill, setRemoteStill] = useState<string | null>(null)
+  const [watching, setWatching] = useState<number | null>(null)
+  const searchCache = useRef(new Map<string, { query: string; movies: Movie[]; nextPage: number | null }>())
+  const searchInFlight = useRef(0)
+  const failedSearchPage = useRef(1)
+  const [indexing, setIndexing] = useState(false)
+  const [indexError, setIndexError] = useState('')
+  const [remoteResults, setRemoteResults] = useState<{ query: string; movies: Movie[]; nextPage: number | null }>({ query: '', movies: [], nextPage: null })
+  const searchRevision = useRef(0)
+  const remoteSlot = useRef<HTMLDivElement>(null)
+  const busy = useRef(new Set<string>())
+
+
+
+  const notify = useCallback((message: string) => {
+    setNotification({ id: ++nextNotification.current, message })
+  }, [])
+  const { appearance, toggleTheme, changeToggle } = useAppearance(INITIAL_APPEARANCE, notify)
+  const state = useMemo(() => ({ ...snapshot, ...appearance }), [snapshot, appearance])
+  const changeLanguage = async (next: Language) => {
+    const previous = getLanguage()
+    if (previous === next || !api) return
+    try { await api.language(next); setLanguage(next) }
+    catch { notify(t('Не удалось сохранить язык')) }
+  }
+  const perform = useCallback(async (action: () => Promise<unknown>) => {
+    try { await action() } catch (e) { notify((e as Error).message) }
+  }, [notify])
+
+  const loadPage = useCallback(async (type: 'films' | 'series', page: number) => {
+    if (!api || busy.current.has(type)) return
+    busy.current.add(type); setLoading(p => ({ ...p, [type]: true })); setErrors(p => ({ ...p, [type]: '' }))
+    try {
+      const result = await api.catalog(type, page)
+      setMovies(p => ({ ...p, [type]: [...new Map([...p[type], ...result.movies].map(m => [m.id, m])).values()] }))
+      setPages(p => ({ ...p, [type]: page })); setMore(p => ({ ...p, [type]: result.hasMore }))
+    } catch (e) { setErrors(p => ({ ...p, [type]: (e as Error).message })) }
+    finally { busy.current.delete(type); setLoading(p => ({ ...p, [type]: false })) }
+  }, [])
+
+  const loadBrowse = useCallback(async (type: FeedType, page: number, options: BrowseOptions) => {
+    const key = browseKey(type, options)
+    if (!api || busy.current.has(key)) return
+    busy.current.add(key)
+    setBrowse(previous => ({ ...previous, [key]: { ...(previous[key] ?? BROWSE_EMPTY), loading: true, error: '' } }))
+    try {
+      const result = await api.browse(type, page, options)
+      setBrowse(p => ({ ...p, [key]: { movies: [...new Map([...(p[key]?.movies ?? []), ...result.movies].map(m => [m.id, m])).values()], nextPage: result.nextPage, loading: false, error: '' } }))
+    } catch (e) { setBrowse(p => ({ ...p, [key]: { ...p[key], loading: false, error: (e as Error).message } })) }
+    finally { busy.current.delete(key) }
+  }, [])
+
+  useEffect(() => {
+    if (!api) { notify(t("Для работы с каталогом откройте приложение NOVA для Windows.")); return }
+    let active = true, receivedUpdate = false
+    const stop = api.onState(next => { receivedUpdate = true; setState(next) })
+    void api.availableUpdate?.().then(update => { if (active) setUpdate(update) }).catch(() => {})
+    api.state().then(initial => { if (active && !receivedUpdate) setState(initial) })
+      .catch(error => { if (active) notify(error.message) })
+    const stopFeedback=api.onFeedback(feedback => setNotification({ id: ++nextNotification.current, feedback }))
+    const stopFocus = api.onFocusSearch(() => {
+      const address = document.querySelector<HTMLInputElement>('.browser-address')
+      if (address) { address.focus(); address.select() }
+      else { setSearchDraft(queryRef.current); setSearchOpen(true) }
+    })
+    const stopReleases = api.onShowReleases(() => { api.home(); setPanelHistory([]); setDetail(null); setSection('releases') })
+    return () => { active = false; stop(); stopFeedback(); stopFocus(); stopReleases() }
+  }, [notify])
+
+  const buildSearchIndex = useCallback(async (page = 1) => {
+    if (!api || searchInFlight.current === searchRevision.current) return
+    const text = activeQuery.trim()
+    const revision = ++searchRevision.current
+    searchInFlight.current = revision
+    setIndexing(true); setIndexError('')
+    try {
+      const result = await api.search(text, page)
+      if (revision !== searchRevision.current) return
+      const previous = searchCache.current.get(text)
+      const movies = [...new Map([...(page > 1 ? previous?.movies ?? [] : []), ...result.movies].map(movie => [movie.id, movie])).values()]
+      const entry = { query: text, movies, nextPage: result.nextPage }
+      searchCache.current.delete(text)
+      searchCache.current.set(text, entry)
+      if (searchCache.current.size > 12) {
+        const oldest = searchCache.current.keys().next().value
+        if (oldest !== undefined) searchCache.current.delete(oldest)
+      }
+      setRemoteResults(entry)
+    } catch (error) {
+      if (revision !== searchRevision.current) return
+      failedSearchPage.current = page
+      setIndexError((error as Error).message)
+    } finally {
+      if (revision === searchRevision.current) {
+        searchInFlight.current = 0
+        setIndexing(false)
+      }
+    }
+  }, [activeQuery])
+  useEffect(() => {
+    ++searchRevision.current
+    setIndexError('')
+    const text = activeQuery.trim()
+    const cached = searchCache.current.get(text)
+    if (cached) { setRemoteResults(cached); setIndexing(false); return }
+    if (text.length < 2 || (/^https?:\/\//i.test(text) && !getContent(text))) { setIndexing(false); return }
+    setIndexing(true)
+    const timer = setTimeout(() => buildSearchIndex(), 350)
+    return () => { clearTimeout(timer); ++searchRevision.current }
+  }, [activeQuery, buildSearchIndex])
+
+  useLayoutEffect(() => { document.documentElement.dataset.theme = state.theme }, [state.theme])
+  useLayoutEffect(() => { document.documentElement.dataset.motion = state.motion ? 'on' : 'off'; window.dispatchEvent(new Event('kadr:motion-change')) }, [state.motion])
+  const remote = state.tabs.find(t => t.id === state.active)
+  const picks = useRecommendations(state.history, state.favorites, !remote && section === 'home' && !query.trim(),state.taste)
+  const pageActive = Boolean(detail || settingsOpen || tasteOpen || profileOpen)
+  const overlay = pageActive || searchOpen || Boolean(notice)
+  useEffect(() => { let current = true; api?.conceal(overlay || unsafeMenu).then(image => { if (current) setRemoteStill(image) }).catch(() => {}); return () => { current = false } }, [overlay, unsafeMenu])
+  useEffect(() => { const opened = new Map<string,boolean>(); const listener = (event: Event) => { const d = (event as CustomEvent).detail; if (d.open) opened.set(d.id,d.nativeSafe===true); else opened.delete(d.id); setSelectOpen(opened.size>0); setUnsafeMenu([...opened.values()].some(safe=>!safe)) }; window.addEventListener('kadr:select-open',listener); return ()=>window.removeEventListener('kadr:select-open',listener) }, [])
+  useEffect(() => {
+    const slot = remoteSlot.current
+    if (!slot || !remote) return
+    let previous = '', frame = 0
+    const sync = () => {
+      const rect = slot.getBoundingClientRect()
+      const [x, y, width, height] = [rect.x, rect.y, rect.width, rect.height].map(Math.round)
+      const dimensions = `${x}:${y}:${width}:${height}`
+      if (previous === dimensions) return
+      previous = dimensions
+      api?.bounds({ x, y, width, height }).catch(() => { if (previous === dimensions) previous = '' })
+    }
+    const schedule = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(sync) }
+    const observer = new ResizeObserver(schedule)
+    observer.observe(slot)
+    window.addEventListener('resize', schedule)
+    sync()
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('resize', schedule) }
+  }, [remote?.id, pageActive])
+  useEffect(() => {
+    const keys = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key.toLowerCase() === 'l') { e.preventDefault(); const address = document.querySelector<HTMLInputElement>('.browser-address'); if (address) { address.focus(); address.select() } else { setSearchDraft(query); setSearchOpen(true) } }
+      if (e.key === 'Escape' && !e.defaultPrevented && !selectOpen && !document.querySelector('dialog[open]')) { e.preventDefault(); closePage() }
+      if (e.altKey && ['ArrowLeft','ArrowRight'].includes(e.key) && !document.querySelector('dialog[open]')) { e.preventDefault(); if (e.key === 'ArrowLeft' && pageActive) closePage(); else { (e.key === 'ArrowLeft' ? back : forward)(); if (state.active) void api?.home() } }
+      if(remote?.kind==='player'&&!overlay&&!selectOpen&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&(e.code==='KeyF'||e.key.toLowerCase()==='f')&&!(e.target instanceof HTMLElement&&e.target.closest('input,textarea,[contenteditable="true"]'))) { e.preventDefault(); if(!e.repeat)api?.window('fullscreen') }
+    }
+    window.addEventListener('keydown', keys); return () => window.removeEventListener('keydown', keys)
+  }, [remote?.kind,overlay,selectOpen,detail,settingsOpen,tasteOpen,profileOpen,back,forward,state.active,query])
+
+  const go = (next: Section, instant = false) => {
+    clearPages(); setNavigationInstant(instant); setSection(next)
+    if (state.active) perform(() => api!.home())
+  }
+  const all = useMemo(() => {
+    const merged = new Map<number, Movie>()
+    for (const movie of [...picks.movies, ...movies.films, ...movies.series, ...Object.values(browse).flatMap(feed => feed.movies), ...state.favorites, ...state.history]) {
+      const previous = merged.get(movie.id)
+      merged.set(movie.id, { ...previous, ...movie, cover: movie.cover || previous?.cover || '', poster: movie.poster || previous?.poster || '', country: movie.country || previous?.country, premiereDate: movie.premiereDate || previous?.premiereDate })
+    }
+    return [...merged.values()]
+  }, [picks.movies,movies,browse,state.favorites,state.history])
+  const findMovie = (id: number, type: 'film' | 'series', title?: string) => all.find(m => m.id === id) || remoteResults.movies.find(m => m.id === id) || manualMovie(id, type, title)
+  const showDetails = useCallback((movie: Movie) => { setSearchOpen(false); setPanelHistory([]); setDetail(movie) }, [])
+  const requestWatch = useCallback((movie: Movie) => { setNotice(movie) }, [])
+  const watch = async (movie: Movie) => {
+    if (!api || watching !== null) return
+    setWatching(movie.id); setSearchOpen(false)
+    try { await api.watch(movie); setDetail(null) }
+    catch (e) { notify((e as Error).message) }
+    finally { setWatching(null) }
+  }
+  const search = (e: FormEvent) => {
+    e.preventDefault(); const value = searchDraft.trim(); if (!value) return
+    const info = getContent(value)
+    if (info) { beginSearch(value); showDetails(findMovie(info.id, info.type)); return }
+    if (/^[1-9]\d{0,11}$/.test(value)) { beginSearch(value); showDetails(findMovie(Number(value), 'film')); return }
+    if (/^https?:\/\//i.test(value)) { setSearchOpen(false); perform(() => api!.open(value)); return }
+    beginSearch(value)
+  }
+  const searchKP = () => perform(() => api!.open(`https://www.kinopoisk.ru/index.php?kp_query=${encodeURIComponent(query.trim())}`))
+  const overview = useMemo(() => mixFeeds(movies.films, movies.series), [movies])
+  const newReleases = section === 'new'
+  const yearSelection = newReleases && year === 'all' ? String(catalogYear) : year
+  const browseOptions: BrowseOptions = {
+    year: yearSelection === 'all' ? undefined : Number(yearSelection),
+    order: sort === 'year' && yearSelection === 'all' ? 'year' : 'date',
+  }
+  const selectedFeeds: FeedType[] = newReleases
+    ? filter === 'all' ? ['films', 'series'] : [filter]
+    : [section === 'series' ? 'series' : 'films']
+  const browseFeeds = selectedFeeds.map(type => ({ type, ...(browse[browseKey(type, browseOptions)] ?? BROWSE_EMPTY) }))
+  const feedMovies = browseFeeds.length === 2 ? mixFeeds(browseFeeds[0].movies, browseFeeds[1].movies) : browseFeeds[0].movies
+  let visible = query.trim()
+    ? [...new Map([...searchMovies(all, query), ...(remoteResults.query === query.trim() ? remoteResults.movies : [])].map(m => [m.id, m])).values()]
+    : section === 'search' ? [] : section === 'favorites' ? state.favorites : section === 'history' ? state.history : section === 'home' || section === 'trending' ? overview : feedMovies
+  const unfilteredCount = visible.length
+  if (region !== 'all') {
+    const countries = new Map(all.filter(movie => movie.country).map(movie => [movie.id, movie.country]))
+    visible = visible.filter(movie => matchesRegion(movie.country || countries.get(movie.id), region))
+  }
+  if (filter !== 'all') visible = visible.filter(m => m.type === (filter === 'films' ? 'film' : 'series'))
+  const genres = [...new Set(visible.flatMap(m => m.genres))].sort((a, b) => t(a.toLowerCase()).localeCompare(t(b.toLowerCase()), getLanguage()))
+  if (genre !== 'Все жанры') visible = visible.filter(m => m.genres.includes(genre))
+  if (sort === 'rating') visible = [...visible].sort((a, b) => (b.rating || 0) - (a.rating || 0))
+  if (sort === 'year' && !['films', 'series'].includes(section)) visible = [...visible].sort((a, b) => (b.year || 0) - (a.year || 0))
+  const recommended = useMemo(() => {
+    const pool = [...picks.movies, ...movies.films.slice(0, 30), ...movies.series.slice(0, 30)]
+    return recommendations(pool.filter(movie => movie.poster), state.history, state.favorites, picks.seed, picks.seen, state.taste)
+  }, [picks.movies, movies.films, movies.series, state.history, state.favorites, picks.seed, picks.seen, state.taste])
+  // A backdrop must be a backdrop, never a portrait poster enlarged to 1100px.
+  const heroMovies = [...new Map([...recommended, ...movies.films.slice(0, 30)].filter(m => m.cover && !badCovers.has(m.id) && allowedSuggestion(m,state.taste)).map(m => [m.id, m])).values()].slice(0, 8)
+  const hero = heroMovies[heroIndex % Math.max(1, heroMovies.length)]
+  const heroIds = new Set(heroMovies.map(movie => movie.id))
+  const shelfMovies = recommended.filter(movie => !heroIds.has(movie.id)).slice(0, 12)
+  const exposure=JSON.stringify([...(hero?[hero.id]:[]),...shelfMovies.map(m=>m.id)])
+  useEffect(()=>{
+    if(remote||section!=='home'||query||overlay||picks.loading||!picks.movies.length)return
+    let timer:ReturnType<typeof setTimeout>|undefined
+    const mark=()=>{clearTimeout(timer);if(!document.hidden)timer=setTimeout(()=>{if(!document.hidden)api?.recommendationsSeen(JSON.parse(exposure)).catch(()=>{})},800)}
+    document.addEventListener('visibilitychange',mark);window.addEventListener('focus',mark);mark()
+    return()=>{clearTimeout(timer);document.removeEventListener('visibilitychange',mark);window.removeEventListener('focus',mark)}
+  },[exposure,remote?.id,section,query,overlay,picks.loading,picks.movies.length])
+  useEffect(() => {
+    if (!state.motion || heroPaused || searchOpen || detail || remote || section !== 'home' || query || heroMovies.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const timer = setInterval(() => { if (!document.hidden) setHeroIndex(i => i + 1) }, 10000)
+    return () => clearInterval(timer)
+  }, [state.motion, heroPaused, searchOpen, detail, remote?.id, section, query, heroMovies.length])
+  const popularSection = section === 'home' || section === 'trending'
+  const isCatalog = ['home', 'trending', 'new', 'films', 'series'].includes(section) || Boolean(query.trim())
+  const searchingCatalog = section === 'search' && Boolean(query.trim())
+  const browseError = browseFeeds.map(feed => feed.error).filter(Boolean).join(' ')
+  const catalogError = !isCatalog ? '' : searchingCatalog ? indexError : popularSection
+    ? [errors.films && t("Фильмы: {0}", errors.films), errors.series && t("Сериалы: {0}", errors.series)].filter(Boolean).join(' ')
+    : browseError
+  const catalogLoading = isCatalog && (searchingCatalog ? indexing : popularSection ? loading.films || loading.series : browseFeeds.some(feed => feed.loading))
+  const searchNextPage = remoteResults.query === query.trim() ? remoteResults.nextPage : null
+  const nextCatalogPage = isCatalog && (searchingCatalog ? searchNextPage
+    : popularSection ? (more.films || more.series) && `${pages.films}:${pages.series}` : browseFeeds.filter(feed => feed.nextPage).map(feed => `${feed.type}:${feed.nextPage}`).join('|'))
+  const loadMore = () => {
+    if (searchingCatalog) {
+      const page = indexError ? failedSearchPage.current : searchNextPage
+      if (page) void buildSearchIndex(page)
+    } else if (popularSection) {
+      if (more.films && (!catalogError || errors.films)) void loadPage('films', pages.films + 1)
+      if (more.series && (!catalogError || errors.series)) void loadPage('series', pages.series + 1)
+    } else {
+      for (const feed of browseFeeds) {
+        if (feed.nextPage && (!browseError || feed.error)) void loadBrowse(feed.type, feed.nextPage, browseOptions)
+      }
+    }
+  }
+  const showHero = section === 'home' && !query.trim()
+  if (showHero) {
+    const displayed = new Set([...heroIds, ...shelfMovies.map(movie => movie.id)])
+    visible = visible.filter(movie => !displayed.has(movie.id) && allowedSuggestion(movie, state.taste))
+  }
+  const favoriteIds = useMemo(() => new Set(state.favorites.map(movie => movie.id)), [state.favorites])
+  const toggleFavorite = useCallback((movie: Movie) => perform(() => api!.favorite(movie)), [perform])
+  const closeSearch = () => { setSearchOpen(false); requestAnimationFrame(() => { document.querySelector<HTMLButtonElement>('.global-search-launch')?.focus({preventScroll:true}) }) }
+  const searchSuggestions = [...new Map([...searchMovies(all, searchDraft), ...(remoteResults.query === searchDraft.trim() ? remoteResults.movies : [])].map(movie => [movie.id, movie])).values()]
+  const chooseSearch = (movie: Movie) => { if (searchDraft.trim()) beginSearch(searchDraft); else if (state.active) void api?.home(); showDetails(movie) }
+
+
+  const clearPages = () => { setPanelHistory([]); setDetail(null) }
+  const closePage = () => { if (detail) setDetail(null); else if (panel) backPanel() }
+  const openProfile = () => openPanel('profile')
+  const openSettings = () => openPanel('settings')
+  const openTaste = () => openPanel('taste')
+  const goGroup = (next: NavigationGroup, instant = false) => { clearPages(); setNavigationInstant(instant); navigateGroup(next); if (state.active) perform(() => api!.home()) }
+  const returnToCatalog = () => { clearPages(); perform(() => api!.home()) }
+  const openSearch = () => { setSearchDraft(query); setSearchOpen(true) }
+  const beginSearch = (text: string, format: 'all' | 'films' | 'series' = 'all') => { clearPages(); startSearch(text, format); setSearchOpen(false); if (state.active) perform(() => api!.home()) }
+  const localNavigation = section === 'releases' ? <PremiereNavigation value={releaseTab} change={(value, instant)=>{setNavigationInstant(instant);setReleaseTab(value)}} count={state.releases.length} instant={navigationInstant}/> : group === 'catalog' || group === 'library' ? <SectionNavigation section={section} navigate={go} taste={openTaste} instant={navigationInstant}/> : null
+  const pageView = detail ? <PageFrame title={detail.title} parent={tasteOpen ? t("Мои оценки") : t(names[section])} back={()=>setDetail(null)}><Suspense fallback={<p role="status">{t("Загружаем описание…")}</p>}><MovieDetails key={detail.id} initial={detail} saved={favoriteIds.has(detail.id)} followed={state.releases.some(m=>m.id===detail.id)} busy={watching!==null} close={()=>setDetail(null)} watch={requestWatch} favorite={toggleFavorite} follow={m=>perform(()=>api!.followRelease(m))} notify={notify} taste={state.taste} rate={(m,a)=>perform(()=>api!.rateMovie(m,a))}/></Suspense></PageFrame>
+    : tasteOpen ? <PageFrame title={t("Мои оценки")} parent={t('Моя NOVA')} back={backPanel}><Suspense fallback={<p role="status">{t("Загружаем оценки…")}</p>}><TasteDialog taste={state.taste} detail={setDetail} rate={(m,a)=>api!.rateMovie(m,a)} clearGenre={g=>api!.tasteGenres(state.taste.genres,state.taste.blockedGenres.filter(genre=>genre!==g))}/></Suspense></PageFrame>
+    : settingsOpen ? <PageFrame title={t("Настройки")} parent={t('Моя NOVA')} back={backPanel}><Suspense fallback={<p role="status">{t("Открываем настройки…")}</p>}><SettingsDialog state={state} update={update} changeLanguage={changeLanguage} changeMotion={value=>changeToggle('motion', value)} changeBackground={value=>changeToggle('glassBackground', value)}/></Suspense></PageFrame>
+    : profileOpen ? <PageFrame title={t("Профиль")} parent="" back={backPanel}><Suspense fallback={<p role="status">{t("Открываем профиль…")}</p>}><ProfilePage state={state} save={patch=>api!.updateProfile(patch)} collection={()=>go('favorites')} history={()=>go('history')} taste={openTaste} settings={openSettings}/></Suspense></PageFrame>
+    : null
+
+  return <GlassScene className={`app kadr-topnav ${state.immersive && !overlay && !unsafeMenu ? 'player-immersive' : ''}`} data-theme={state.theme} data-optics={optics.status} data-optic-maps={optics.maps} data-navigation-instant={navigationInstant} appearance={state.theme} material="regular" motion={reducedMotion?'none':'full'} maxSurfaces={12} onDiagnostic={glassDiagnostic}>
+    <StartupIntro ready={snapshot !== EMPTY || !api} />
+    <GlassContent className="app-backdrop">
+    <div className="reference-backdrop" aria-hidden="true"/>
+    <div className="window-bar global-caption" aria-hidden="true"/>
+    <AppNavigation state={state} group={panel||remote?null:group} pageKey={`${panel||''}:${detail?.id||''}:${section}:${remote?.id||''}`} instant={navigationInstant} navigate={goGroup} search={openSearch} settings={openSettings} taste={openTaste} editProfile={openProfile} history={()=>go('history')} theme={origin=>toggleTheme(origin, !remote || pageActive)} details={showDetails} readNotices={id=>perform(()=>api!.readReleases(id))} dismissNotices={ids=>perform(()=>api!.dismissReleaseNotices(ids))} activateTab={id=>{clearPages();perform(()=>api!.tab(id))}}/>
+
+    <div className="workspace">
+      {state.tabs.length > 0 && !pageActive && remote && <div ref={tabsRoot} className="tabbar"><SelectionHighlight container={tabsRoot} axis="horizontal" value={!pageActive&&remote ? `remote-${remote.id}` : null} instant={navigationInstant} layoutKey={state.tabs.map(t => `${t.id}:${t.title}`).join('|')} />{state.tabs.map(tab => <div data-selection-key={`remote-${tab.id}`} className={`remote-tab ${tab.id === state.active && !pageActive ? 'active' : ''}`} key={tab.id}><button onClick={e => { clearPages(); setNavigationInstant(e.detail === 0); perform(() => api!.tab(tab.id)) }}>{tab.kind !== 'site' ? <Play size={13} /> : <Globe2 size={13} />}<span>{tab.title}</span></button><button aria-label={t("Закрыть {0}", tab.title)} className="tab-close" onClick={() => perform(() => api!.closeTab(tab.id))}><X size={13} /></button></div>)}</div>}
+
+      {pageView ? pageView : remote ? <div className="remote-container">
+        <RemoteToolbar tab={remote} onNavigate={(action, address) => perform(() => api!.navigate(action, address))} onDetails={() => remote.movie && showDetails(remote.movie)} onWatch={() => remote.detected && showDetails(findMovie(remote.detected.id, remote.detected.type, remote.title))} watching={watching !== null} onProvider={(p, t) => perform(() => api!.provider(p, t))} />
+        {remote.error && <div className="remote-error"><Info size={16} />{t(remote.error)}<button onClick={() => perform(() => api!.navigate('reload'))}>{t("Повторить")}</button></div>}
+        <div className="remote-slot" ref={remoteSlot}>{remoteStill && <img className="remote-still" src={remoteStill} alt="" />}</div>
+      </div> : <Suspense fallback={<div className="catalog-loading" role="status">{t("Загружаем каталог…")}</div>}><CatalogScene title={section === 'home' ? undefined : section === 'search' ? t("Результаты поиска") : newReleases ? t("Новинки") : group === 'catalog' ? t("Каталог") : group === 'library' ? t("Медиатека") : t("Скоро в NOVA")} anchorVersion={isCatalog ? visible.length : undefined} pageCursor={!overlay && !catalogError && !catalogLoading && nextCatalogPage ? String(nextCatalogPage) : undefined} loadNext={loadMore} subtitle={section === 'history' ? t("Фильмы и сериалы, для которых вы открывали плеер") : undefined} sectionKey={section === 'releases' ? section + releaseTab : section} instant={navigationInstant} viewKey={catalogViewKey + (section === 'releases' ? releaseTab : '')} positions={catalogPositions.current} navigation={localNavigation}>
+        {section === 'releases' && !query.trim() ? <UpcomingPage selectedTab={releaseTab} onTabChange={setReleaseTab} hideNavigation taste={state.taste} history={state.history} favorites={state.favorites} items={state.releases} follow={m => api!.followRelease(m)} remove={id => api!.unfollowRelease(id)} check={() => api!.checkReleases()} detail={showDetails} /> : <>
+        {showHero && <>
+          <div className="page-heading"><h1 className="heading-5">{t("Обзор")}</h1></div>
+          {hero ? <section className="hero" aria-label={hero.title} onMouseEnter={() => setHeroPaused(true)} onMouseLeave={() => setHeroPaused(false)} onFocusCapture={() => setHeroPaused(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) setHeroPaused(false) }}>
+            <img key={hero.id} className="hero-image" src={hero.cover} alt="" onLoad={e => { if (e.currentTarget.naturalWidth / e.currentTarget.naturalHeight < 1.3) setBadCovers(p => new Set([...p, hero.id])) }} onError={() => setBadCovers(p => new Set([...p, hero.id]))} />
+            <div className="hero-shade" />
+            <div className="hero-copy"><h2 className="heading-2">{hero.title}</h2><div className="hero-meta">{hero.rating && <span className="rating-text">{hero.rating.toFixed(1)} {t("КП")}</span>}<span>{hero.year}</span><span>{hero.genres.slice(0, 2).map(genre => t(genre.toLowerCase())).join(', ')}</span>{hero.age && <span className="age">{hero.age}+</span>}</div>{hero.original && <p>{hero.original}</p>}<div className="hero-actions"><button className="hero-details" onClick={() => showDetails(hero)}>{t("Подробнее")}<ChevronRight size={17}/></button><button className={`save-button ${favoriteIds.has(hero.id) ? 'saved' : ''}`} aria-label={favoriteIds.has(hero.id) ? t("Убрать из коллекции") : t("В коллекцию")} onClick={() => toggleFavorite(hero)}><Bookmark size={20} fill={favoriteIds.has(hero.id) ? 'currentColor' : 'none'} /></button></div></div>
+            <div className="hero-pagination"><button className="icon-button" aria-label={t("Предыдущая рекомендация")} onClick={() => setHeroIndex(i => (i - 1 + heroMovies.length) % heroMovies.length)}><ArrowLeft size={18} /></button><span className="caption-5">{heroIndex % heroMovies.length + 1} / {heroMovies.length}</span><button className="icon-button" aria-label={t("Следующая рекомендация")} onClick={() => setHeroIndex(i => i + 1)}><ArrowRight size={18} /></button></div>
+          </section> : loading.films ? <div className="hero-loading" aria-busy="true"><Clapperboard size={36} /><span>{t("Загружаем каталог")}</span></div> : null}
+        </>}
+
+        {showHero && <RecommendationShelf loading={picks.loading} error={picks.error} description={state.taste.liked.length ? t("По вашим просмотрам и оценкам") : state.history.some(m => (m.watchedSeconds || 0) >= 120) ? t("По тому, что вы смотрите") : t("Фильмы и сериалы для знакомства")} refresh={() => { picks.refresh(true,JSON.parse(exposure)); setHeroIndex(0) }}><MovieGrid movies={shelfMovies} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails} /></RecommendationShelf>}
+
+        {(unfilteredCount > 0 || (isCatalog && section !== 'home')) && <div className="filterbar">
+          {(query.trim() || newReleases || section === 'favorites' || section === 'history') && <FormatTabs value={filter} instant={navigationInstant} change={(value, instant) => { setNavigationInstant(instant); setFilter(value); setGenre('Все жанры') }}/>}
+          {(newReleases || section === 'films' || section === 'series') && <Select
+            label={t("Год выпуска")} className="genre-select year-select" value={yearSelection}
+            options={newReleases ? recentYearOptions : yearOptions}
+            onChange={value => { setYear(value); setGenre('Все жанры') }} typeahead
+          />}
+          <Select label={t("Регион производства")} className="region-select" value={region} options={regionOptions} onChange={value => { setRegion(value); setGenre('Все жанры') }}/>
+          <Select label={t("Жанр")} className="genre-select" value={genre} onChange={setGenre}
+            options={[{ value: 'Все жанры', label: 'Все жанры' }, ...genres.map(g => ({ value: g, label: g }))]}/>
+          <span className="count-label">{unfilteredCount > 0 ? (query.trim() ? t("Найдено: {0}", visible.length) : t("Показано: {0}", visible.length)) : ' '}</span>
+          {(filter !== 'all' || genre !== 'Все жанры' || sort !== 'popular' || year !== 'all' || region !== 'all') &&
+            <button className="quiet-button" onClick={() => { setFilter('all'); setGenre('Все жанры'); setSort('popular'); setYear('all'); setRegion('all') }}>{t("Сбросить фильтры")}</button>}
+          <div className="catalog-filter-actions">
+            {section === 'history' && !query.trim() && state.history.length > 0
+              ? <button className="quiet-button" onClick={() => perform(() => api!.clearHistory())}><Trash2 size={15}/>{t("Очистить")}</button>
+              : !newReleases && (unfilteredCount > 0 || section === 'films' || section === 'series') && <div className="catalog-tools">
+                <Settings2 size={15}/>
+                <Select label={t("Сортировка")} value={sort} onChange={setSort} options={[
+                  { value: 'popular', label: query.trim() ? t("По соответствию") : section === 'favorites' ? t("По добавлению") : section === 'films' || section === 'series' ? t("По обновлению") : t("По популярности") },
+                  { value: 'rating', label: t("По рейтингу") },
+                  { value: 'year', label: t("Сначала новые") },
+                ]}/>
+              </div>}
+          </div>
+        </div>}
+        <MovieGrid showType={filter === 'all' && (Boolean(query.trim()) || !['films', 'series'].includes(section))} movies={visible} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails} />
+        {!visible.length && !catalogLoading && !nextCatalogPage && !catalogError && <div className="empty-state">{section === 'favorites' ? <Bookmark size={32} /> : section === 'history' ? <Clock3 size={32} /> : <Search size={32} />}<h3>{query.trim() ? t("Ничего не найдено") : section === 'favorites' ? t("В коллекции пока пусто") : section === 'history' ? t("История пустая") : t("В этой подборке ничего нет")}</h3><p>{query.trim() ? t("Попробуйте другое название или откройте поиск Кинопоиска") : section === 'favorites' ? t("Нажмите на закладку у любого фильма.") : t("Выберите фильм в каталоге и откройте плеер.")}</p>{query.trim() && <button className="primary-button button-sm" onClick={searchKP}>{t("Искать на Кинопоиске")}<ArrowRight size={16} /></button>}</div>}
+        {isCatalog && catalogError && <div className="catalog-error" role="alert">{catalogError}<button onClick={loadMore}>{t("Повторить")}</button></div>}
+        {catalogLoading && <div className="catalog-autoload" role="status"><RotateCw className="spin" size={16}/>{searchingCatalog ? t("Ищем в каталоге…") : t("Загружаем каталог…")}</div>}
+      </>}
+        
+      </CatalogScene></Suspense>}
+    </div>
+
+    </GlassContent>
+    {watching !== null && <div className="watch-progress"><RotateCw className="spin" size={17} /><div>{t("Ищем доступные плееры")}<span>{all.find(m => m.id === watching)?.title || t("Кинопоиск · {0}", watching)}</span></div></div>}
+    {notification && <FeedbackToast key={notification.id} notice={notification.feedback} message={notification.message}
+      close={() => setNotification(current => current?.id === notification.id ? null : current)}
+      undo={notification.feedback?.undoToken ? () => api!.undoFeedback(notification.feedback!.undoToken!) : undefined}/>}
+    {searchOpen && <SearchDialog query={searchDraft} change={setSearchDraft} movies={searchSuggestions} busy={indexing} error={indexError} close={closeSearch} choose={chooseSearch} submit={search} allResults={format=>beginSearch(searchDraft,format)} />}
+    {notice && <ContentNotice movie={notice} close={() => setNotice(null)} start={() => { const movie = notice; setNotice(null); void watch(movie) }} />}
+  </GlassScene>
+}
+
+function RemoteToolbar({ tab, onNavigate, onWatch, onDetails, watching, onProvider }: { tab: RemoteTab; onNavigate: (a: string, address?: string) => void; onWatch: () => void; onDetails: () => void; watching: boolean; onProvider: (p: number, t: number) => void }) {
+  const [address, setAddress] = useState(tab.url)
+  useEffect(() => { setAddress(tab.url) }, [tab.url])
+  return <div className="remote-toolbar">
+    {tab.kind === 'player' && tab.movie && <button className="quiet-button player-back" aria-label={t("К описанию фильма")}  onClick={onDetails}><ArrowLeft size={18}/><span>{t("К фильму")}</span></button>}
+    {tab.kind === 'site' ? <>
+      <div className="browser-nav">
+        <button className="icon-button" aria-label={t("Назад")} disabled={!tab.canBack} onClick={() => onNavigate('back')}><ArrowLeft size={16} /></button>
+        <button className="icon-button" aria-label={t("Вперёд")} disabled={!tab.canForward} onClick={() => onNavigate('forward')}><ArrowRight size={16} /></button>
+        <button className="icon-button" aria-label={t("Обновить")} onClick={() => onNavigate('reload')}><RotateCw size={16} className={tab.loading ? 'spin' : ''} /></button>
+      </div>
+      <form className="browser-address-form" onSubmit={e => { e.preventDefault(); onNavigate('address', /^https?:\/\//i.test(address.trim()) ? address.trim() : 'https://' + address.trim()) }}>
+        <input className="browser-address" aria-label={t("Адрес сайта")} value={address} onChange={e => setAddress(e.target.value)} />
+      </form>
+      {tab.detected && <button className="primary-button compact-button" disabled={watching} onClick={onWatch}><Play size={14} fill="currentColor" />{t("Смотреть")}</button>}
+    </> : tab.kind === 'trailer' ? <div className="player-options"><button className="quiet-button" onClick={onDetails}><ArrowLeft size={16} />{tab.movie?.type === 'series' ? t("О сериале") : t("О фильме")}</button><span>{t("Трейлер")}</span></div> : <div className="player-options">
+      <div className="provider-label"><span>{t("Плеер")}</span><Select label={t("Плеер")} value={String(tab.provider)} onChange={v => onProvider(Number(v), -1)} options={tab.providers.map((p, i) => ({ value: String(i), label: p.name }))} /></div>
+      {Boolean(tab.providers[tab.provider]?.translations.length) && <Select label={t("Озвучка")} className="translation-select" value={String(tab.translation)} onChange={v => onProvider(tab.provider, Number(v))} options={[{ value: '-1', label: t("Озвучка в плеере") }, ...tab.providers[tab.provider].translations.map((t, i) => ({ value: String(i), label: t.name + (t.quality ? ` · ${t.quality}` : '') }))]} />}
+    </div>}
+    {tab.kind !== 'site' ? <PlayerMenu details={tab.kind === 'player' ? onDetails : undefined} reload={() => onNavigate('reload')} blocked={tab.adblock.enabled} toggleBlock={() => api?.adblock()}/> : <button className={`adblock-toggle ${tab.adblock.enabled ? 'enabled' : ''}`}  aria-label={t("Блокировка рекламы")} aria-pressed={tab.adblock.enabled} onClick={() => api?.adblock()}>{tab.adblock.enabled ? <ShieldCheck size={17} /> : <ShieldOff size={17}/>}</button>}
+    <button className="icon-button" aria-label={t("Открыть в браузере")} onClick={() => onNavigate('external')}><ExternalLink size={16} /></button>
+    <button className="icon-button" aria-label={t("Полный экран (F11)")} onClick={() => api?.window('fullscreen')}><Maximize2 size={16} /></button>
+  </div>
+}
+
+function mixFeeds(films: Movie[], series: Movie[]) {
+  const merged = new Map<number, Movie>()
+  for (let index = 0; index < Math.max(films.length, series.length); index++) {
+    for (const movie of [films[index], series[index]]) if (movie && !merged.has(movie.id)) merged.set(movie.id, movie)
+  }
+  return [...merged.values()]
+}
+
+function formatSeasons(count: number) {
+  if (getLanguage() === 'en') return count + (count === 1 ? ' season' : ' seasons')
+  const n = count % 100
+  return `${count} ${n >= 11 && n <= 14 ? 'сезонов' : count % 10 === 1 ? 'сезон' : count % 10 >= 2 && count % 10 <= 4 ? 'сезона' : 'сезонов'}`
+}
+
+function MovieGrid({ movies, favorites, favorite, detail, showType = true }: {
+  showType?: boolean; movies: Movie[]; favorites: Set<number>
+  favorite: (movie: Movie) => void; detail: (movie: Movie) => void
+}) {
+  return <div className="movie-grid">{movies.map(movie => <MovieCard key={movie.id} movie={movie}
+    saved={favorites.has(movie.id)} showType={showType}
+    favorite={favorite} detail={detail}/>)}</div>
+}
+
+const MovieCard = memo(function MovieCard({ movie, saved, showType, favorite, detail }: {
+  movie: Movie; saved: boolean; showType: boolean
+  favorite: (movie: Movie) => void; detail: (movie: Movie) => void
+}) {
+  useLanguage()
+  const contextMenu = () => { void api?.filmMenu(movie).catch(() => {}) }
+  return <article className="movie-card" data-movie-id={movie.id}
+    onContextMenu={event => { event.preventDefault(); contextMenu() }}
+    onKeyDown={event => {
+      if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+        event.preventDefault()
+        contextMenu()
+      }
+    }}>
+    <div className="poster-wrap">
+      <button className="poster-button" aria-label={t("Подробнее о «{0}»", movie.title)} onClick={() => detail(movie)}>
+        <MoviePoster key={movie.poster} movie={movie} className="poster" decorative/>
+        {showType && movie.type === 'series' && <span className="series-label" aria-hidden="true">{t("Сериал")}</span>}
+        <PosterHover/>
+      </button>
+      {movie.rating && <span className={`poster-rating ${movie.rating < 7 ? 'neutral-rating' : ''}`}>{movie.rating.toFixed(1)}</span>}
+      <button className={`poster-save ${saved ? 'is-saved' : ''}`}
+        aria-label={saved ? t("Убрать «{0}» из коллекции", movie.title) : t("Сохранить «{0}»", movie.title)}
+        onClick={() => favorite(movie)}>
+        <Bookmark size={16} fill={saved ? 'currentColor' : undefined}/>
+      </button>
+    </div>
+    <button className="movie-title title-4" onClick={() => detail(movie)}>{movie.title}</button>
+    <p className="movie-meta caption-5">{[movie.year, movie.type === 'series' && movie.seasons ? formatSeasons(movie.seasons) : (movie.genres[0] && t(movie.genres[0].toLowerCase()))].filter(Boolean).join(' · ')}</p>
+  </article>
+})

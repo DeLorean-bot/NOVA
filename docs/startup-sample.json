@@ -1,0 +1,17 @@
+{
+  "version": "0.8.2",
+  "packaged": true,
+  "passed": true,
+  "errors": [],
+  "startup": {
+    "logo": 976,
+    "reveal": 1456,
+    "done": 1767
+  },
+  "search": {
+    "width": 640,
+    "height": 294,
+    "bottomGap": 10
+  },
+  "testClosed": true
+}

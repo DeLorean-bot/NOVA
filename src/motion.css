@@ -1,0 +1,115 @@
+/* One live optical source for floating controls, separate from readable content. */
+.app.lg-scene { display: block; --lg-foreground: var(--fg); }
+.app-backdrop { display: flex; overflow: hidden; }
+.app-controls { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.catalog-scene { position: relative; }
+.catalog-search-anchor { position: absolute; inset: 0 0 auto; height: 80px; pointer-events: none; }
+:root { --duration-fast: 160ms; --duration-move: 260ms; --duration-fade: 180ms; }
+.settings-dialog.lg-surface,.search-dialog.lg-surface,.select-menu.lg-surface,.feedback-toast.lg-surface { background: color-mix(in srgb,var(--panel) 88%,transparent); backdrop-filter: none; -webkit-backdrop-filter: none; border: 0; box-shadow: none; }
+:root[data-theme='dark'] :is(.settings-dialog,.search-dialog,.select-menu,.feedback-toast).lg-surface { --muted: #b0aea8; --secondary: #d0cec9; }
+:root[data-theme='light'] :is(.settings-dialog,.search-dialog,.select-menu,.feedback-toast).lg-surface { background: color-mix(in srgb,var(--panel) 82%,transparent); --secondary: #45483f; --muted: #45483f; }
+/* Dialog text sits outside the scene source. Blur that local backdrop on the
+   same notification surface so it cannot read as a second line of copy. */
+:root[data-theme] .feedback-toast.lg-surface { background: color-mix(in srgb,var(--panel) 94%,transparent); backdrop-filter: blur(20px) saturate(1.08); -webkit-backdrop-filter: blur(20px) saturate(1.08); }
+.app-controls .searchbox.lg-surface { background: color-mix(in srgb,var(--panel) 86%,transparent) !important; }
+/* Maps arrive asynchronously. Keep the controls visible while geometry warms. */
+.lg-surface:not([style*='clip-path']) { visibility: visible; background: var(--floating-material); border-radius: 20px; }
+.settings-glass-switch [data-lg-shape]:not([style*='clip-path']) { visibility: visible; border-radius: 999px; }
+.app[data-optics='fallback'] .lg-surface { background: var(--floating-material); }
+.settings-dialog.lg-surface { position: fixed; width: min(800px,calc(100vw - 64px)); height: min(568px,calc(100dvh - 64px)); max-height: calc(100dvh - 64px); overflow: hidden; border-radius: 28px; }
+.settings-dialog[open] { display: grid; grid-template-rows: 76px minmax(0,1fr); }
+.settings-heading { padding: 20px 24px; }
+.settings-layout { min-height: 0; grid-template-columns: 180px minmax(0,1fr); overflow: hidden; }
+.settings-nav { position: relative; padding: 12px 8px; gap: 4px; isolation: isolate; }
+.settings-nav .settings-nav-lens { position: absolute; inset: 12px 8px auto; height: 44px; border-radius: 12px; pointer-events: none; z-index: -1; transition: transform var(--motion-nav) var(--ease-out); background: color-mix(in srgb,var(--selection) 40%,transparent); }
+.settings-nav > button { position: relative; height: 44px; flex: none; }
+.settings-nav > button[aria-current='page'] { background: transparent; }
+.settings-nav > button:hover { background: color-mix(in srgb,var(--selection) 30%,transparent); }
+.settings-content { min-height: 0; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; padding: 12px 28px 28px 24px; animation: none; overscroll-behavior: contain; }
+.settings-content::-webkit-scrollbar { width: 8px; background: transparent; }
+.settings-content::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 8px; background: color-mix(in srgb,var(--muted) 45%,transparent); background-clip: padding-box; }
+.settings-content::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.settings-content .theme-choices { display: flex; gap: 4px; padding: 4px; margin: 16px 0 24px; background: color-mix(in srgb,var(--selection) 55%,transparent); border-radius: 14px; }
+.app .settings-content .theme-choice { flex: 1; display: flex; justify-content: center; padding: 0; min-height: 40px; background: transparent; border: 0; border-radius: 10px; }
+.app .settings-content .theme-choice[aria-pressed='true'] { background: var(--panel); box-shadow: 0 1px 4px #00000012; }
+.settings-content .theme-choice-label { gap: 8px; padding: 8px 12px; }
+.settings-about { margin-bottom: 20px; }
+.settings-about > img { width: 64px; height: 64px; }
+.app .glass-toggle { position: relative; flex: none; width: 56px; height: 30px; border-radius: 999px; border: 0; padding: 0; background: color-mix(in srgb,var(--muted) 40%,transparent); --thumb-x: 0px; }
+.app .glass-toggle[aria-checked='true'] { background: #519f80; --thumb-x: 26px; }
+:root[data-theme='light'] .glass-toggle[aria-checked='true'] { background: #397e66; }
+.glass-toggle .glass-toggle-thumb { position: absolute; left: 3px; top: 3px; width: 24px; height: 24px; border-radius: 999px; transform: translateX(var(--thumb-x)); transition: transform 240ms var(--ease-out); background: #ffffffe6; box-shadow: 0 1px 4px #0003; }
+.glass-toggle-core { position: absolute; inset: 2px; border-radius: inherit; background: #fffffff0; transition: background-color 160ms ease; }
+.app .glass-toggle:active:not(:disabled) { transform: none; }
+.glass-toggle:active .glass-toggle-thumb { transform: translateX(var(--thumb-x)) scaleX(1.12); }
+.glass-toggle:active .glass-toggle-core { background: #ffffffc9; }
+.glass-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.settings-dialog::backdrop,.search-dialog::backdrop,.taste-dialog::backdrop,.movie-detail::backdrop { background: #06080c66; backdrop-filter: blur(4px); }
+:root[data-theme='light'] :is(.settings-dialog,.search-dialog,.taste-dialog,.movie-detail)::backdrop { background: #181c2029; backdrop-filter: blur(3px); }
+.app button:not([data-glass-interactive]),.select-menu button,.feedback-toast button { transition: transform var(--duration-fast) var(--ease-out),background-color var(--duration-fade) ease,color var(--duration-fade) ease,opacity var(--duration-fade) ease,box-shadow var(--duration-fade) ease; }
+.app button:not([data-glass-interactive]):active:not(:disabled),.select-menu button:active:not(:disabled),.feedback-toast button:active:not(:disabled) { transform: scale(.97); }
+.app .material-symbol { transition: transform 180ms var(--ease-out),color 180ms ease,opacity 180ms ease; }
+.app button:hover > .material-symbol { transform: translateY(-1px); }
+.app .settings-toggle[aria-expanded='true'] > .material-symbol { transform: rotate(45deg); }
+.app .settings-nav button[aria-current='page'] > .material-symbol { transform: scale(1.08); }
+.settings-dialog { animation: surface-enter 260ms var(--ease-out); }
+/* A frequent command stays in place; glass geometry does not chase a translation. */
+.search-dialog { animation: search-enter 140ms ease-out; }
+@keyframes search-enter { from { opacity: 0; } to { opacity: 1; } }
+.catalog-topbar .search-launch:active:not(:disabled),.catalog-topbar .search-launch:hover > .material-symbol { transform: none; }
+.select-menu { animation: menu-enter 180ms var(--ease-out); transform-origin: top center; }
+.poster-wrap { transition: transform 220ms var(--ease-out); }
+@media(hover:hover) { .movie-card:hover .poster-wrap { transform: translateY(-3px); } }
+.movie-card:focus-within .poster-wrap { transform: translateY(-3px); }
+[data-surface-exiting] { pointer-events: none !important; }
+@keyframes surface-enter { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: 0 0; } }
+@keyframes menu-enter { from { opacity: 0; translate: 0 -4px; } to { opacity: 1; translate: 0 0; } }
+@media(forced-colors:active),(prefers-reduced-transparency:reduce) { .settings-dialog.lg-surface,.search-dialog.lg-surface,.select-menu.lg-surface,:root[data-theme] .feedback-toast.lg-surface { background: var(--panel); backdrop-filter: none; -webkit-backdrop-filter: none; border: 1px solid var(--edge); } }
+/* Navigation surfaces share a single, interruptible selection marker. */
+:root { --motion-nav: 200ms; --motion-layout: 220ms; --motion-panel: 220ms; --motion-menu: 160ms; }
+.main-nav,.tabbar { position: relative; isolation: isolate; }
+.selection-highlight { position: absolute; left: 0; top: 0; z-index: 0; display: block; pointer-events: none; border-radius: 12px; background: var(--selection); opacity: 0; transition: transform var(--motion-nav) var(--ease-out),width var(--motion-layout) var(--ease-out),height var(--motion-layout) var(--ease-out),opacity 120ms ease-out; }
+.selection-highlight[data-visible='true'] { opacity: 1; }
+.selection-highlight[data-instant='true'] { transition: none; }
+.selection-highlight[data-axis='vertical']::before { content: ''; position: absolute; left: 0; top: 16px; bottom: 16px; width: 2px; border-radius: 2px; background: var(--accent); }
+.app .main-nav .nav-item { z-index: 1; }
+.app .main-nav .nav-item.selected { background: transparent; }
+.main-nav .selected::before { display: none; }
+.app .main-nav .nav-item.selected:hover { background: color-mix(in srgb,var(--raised) 35%,transparent); }
+.app .sidebar .nav-item:hover > .material-symbol { transform: none; }
+.app .sidebar .nav-item:active:not(:disabled) { transform: none; }
+.app .tabbar > .app-tab,.app .tabbar > .remote-tab { position: relative; z-index: 1; }
+.app .tabbar > .active { background: transparent; }
+.tabbar .selection-highlight { border-radius: 10px; }
+.app-backdrop > .sidebar { transition: width var(--motion-layout) var(--ease-out),padding var(--motion-layout) var(--ease-out); }
+.app .sidebar .nav-item { justify-content: flex-start; gap: 8px; overflow: hidden; transition: padding var(--motion-layout) var(--ease-out),gap var(--motion-layout) var(--ease-out),background-color 130ms ease,color 130ms ease; }
+.app .sidebar .nav-label { display: inline-block; flex: 1; min-width: 0; max-width: 160px; overflow: hidden; white-space: nowrap; opacity: 1; transition: max-width var(--motion-layout) var(--ease-out),opacity 100ms ease-out; }
+.app .sidebar .nav-item small { display: block; max-width: 36px; overflow: hidden; opacity: 1; transition: max-width var(--motion-layout) var(--ease-out),opacity 100ms ease-out; }
+.app.sidebar-compact .sidebar .nav-item { justify-content: flex-start; gap: 0; padding-inline: 20px; }
+.app.sidebar-compact .sidebar .nav-label,.app.sidebar-compact .sidebar .nav-item small { display: inline-block; max-width: 0; opacity: 0; }
+.brand-logo { transition: opacity 120ms ease-out; }
+.brand-monogram { opacity: 0; width: 148px; top: 50%; }
+.sidebar-compact .brand-wordmark { opacity: 0; }
+.sidebar-compact .brand-monogram { opacity: 1; }
+.app[data-navigation-instant='true'] .sidebar,.app[data-navigation-instant='true'] .sidebar .nav-item,.app[data-navigation-instant='true'] .sidebar .nav-label,.app[data-navigation-instant='true'] .sidebar .nav-item small,.app[data-navigation-instant='true'] .brand-logo { transition: none; }
+/* Route motion owns the group; dozens of posters do not cascade in separately. */
+.movie-card { animation: none; }
+.movie-grid { transition: opacity 160ms ease-out; }
+@starting-style { .movie-grid { opacity: 0; } }
+.app :is(.settings-dialog,.taste-dialog,.movie-detail,.content-notice) { animation: panel-enter var(--motion-panel) var(--ease-out); }
+@keyframes panel-enter { from { opacity: 0; translate: 0 6px; } to { opacity: 1; translate: 0 0; } }
+.select-menu { animation: menu-enter var(--motion-menu) var(--ease-out); transform-origin: top left; }
+.select-menu[data-side='top'] { animation-name: menu-enter-up; transform-origin: bottom left; }
+.player-menu { transform-origin: top right; }
+@keyframes menu-enter { from { opacity: 0; translate: 0 -3px; } to { opacity: 1; translate: 0 0; } }
+@keyframes menu-enter-up { from { opacity: 0; translate: 0 3px; } to { opacity: 1; translate: 0 0; } }
+.player-back { display: flex; align-items: center; gap: 6px; flex: none; min-height: 36px; padding: 6px 8px; }
+@media(max-width:1100px) { .player-back > span:not(.material-symbol) { display: none; } }
+.settings-nav-lens[data-instant='true'] { transition: none; }
+.app .sidebar .settings-toggle[aria-expanded='true'] > .material-symbol { transform: rotate(45deg); }
+
+:root[data-input='keyboard'] :is(.selection-highlight,.settings-nav-lens) { transition: none; }
+:root[data-input='keyboard'] :is(.settings-dialog,.taste-dialog,.movie-detail,.content-notice,.select-menu,.search-dialog) { animation: none !important; }
+:root[data-input='keyboard'] .app button:active { transform: none !important; }
+:root[data-motion='off'] *, :root[data-motion='off'] *::before, :root[data-motion='off'] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+@media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

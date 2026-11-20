@@ -1,0 +1,58 @@
+/* No rectangular header surface: only the separate capsules read the page behind. */
+:root {
+  --nav-glass: rgba(80,80,80,.10); --nav-line: rgba(255,255,255,.065);
+  --nav-shadow: 0 0 0 1px var(--nav-line),0 8px 40px rgba(10,10,10,.40);
+  --pill-hover: rgba(255,255,255,.045); --pill-press: rgba(255,255,255,.075);
+  --tab-selected: rgba(255,255,255,.10); --header-fade: rgba(11,11,13,.92);
+}
+:root[data-theme='light'] {
+  --nav-glass: rgba(255,255,255,.64); --nav-line: rgba(20,20,20,.06);
+  --nav-shadow: inset 0 .5px 0 rgba(255,255,255,.48),0 0 0 1px var(--nav-line),0 8px 40px rgba(20,20,20,.12);
+  --pill-hover: color-mix(in srgb,var(--nav-glass) 76%,rgba(120,120,128,.26));
+  --pill-press: color-mix(in srgb,var(--nav-glass) 64%,rgba(120,120,128,.34));
+  --tab-selected: rgba(120,120,128,.18); --header-fade: rgba(255,255,255,.92);
+  --menu-glass: rgba(255,255,255,.88); --menu-glass-hover: rgba(255,255,255,.92);
+}
+.app-header { position: absolute; inset: 32px 0 auto; z-index: 6; display: block; isolation: isolate; padding: 16px 20px; background: none; box-shadow: none; border: 0; pointer-events: none; }
+.app-header-row { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 1280px; height: 44px; margin-inline: auto; pointer-events: none; }
+.app-header-row > :not(.header-actions),.app-header .header-actions > button { pointer-events: auto; }
+.app-header .header-actions { pointer-events: none; }
+.app-header::before { content: ''; position: absolute; inset: 0 0 -28px; z-index: -1; pointer-events: none; background: linear-gradient(to bottom,var(--header-fade) 0%,transparent 78%); backdrop-filter: blur(10px); mask-image: linear-gradient(#000 0%,#000 30%,#0008 62%,transparent 100%); opacity: 0; transition: opacity 400ms var(--ease-menu); }
+.app-header[data-scrolled='true']::before { opacity: 1; }
+.global-caption { position: relative; z-index: 7; background: var(--canvas); }
+.kadr-topnav .workspace { position: relative; }
+.kadr-topnav .catalog-content { padding-top: 100px; scroll-padding-top: 100px; }
+.kadr-topnav .page-frame { padding-top: 84px; scroll-padding-top: 100px; }
+.kadr-topnav .tabbar { position: absolute; inset: 76px 20px auto; z-index: 5; height: 40px; margin: 0; background: none; pointer-events: none; }
+.kadr-topnav .tabbar > :is(.app-tab,.remote-tab) { pointer-events: auto; }
+.kadr-topnav .workspace:has(.tabbar) .catalog-content { padding-top: 140px; scroll-padding-top: 140px; }
+.kadr-topnav .workspace:has(.tabbar) .page-frame { padding-top: 124px; scroll-padding-top: 140px; }
+.kadr-topnav .remote-container { padding-top: 116px; }
+.kadr-topnav.player-immersive .remote-container { padding-top: 0; }
+.kadr-topnav .catalog-loading { padding-top: 100px; }
+.app .nav-pill { transition: transform 160ms var(--ease-menu),background-color 150ms ease-out,box-shadow 150ms ease-out; transform-origin: center; }
+.app .nav-pill:hover,.app .nav-pill:has(:focus-visible),.app .header-actions .nav-round:hover { background-color: var(--pill-hover); }
+.app .nav-pill:active,.app .header-actions .nav-round:active { background-color: var(--pill-press); }
+.app .nav-pill:hover { transform: scale(1.02); }
+.app .nav-pill:active { transform: scale(.98); }
+.app .nav-pill > button { font-size: 14px; font-weight: 450; }
+.app .nav-pill > button[aria-current='page'] { -webkit-text-stroke: .25px currentColor; }
+.app .nav-pill > button:hover { background: transparent; }
+.nav-pill > .selection-highlight,.tabbar > .selection-highlight { border-radius: 9999px; background: var(--tab-selected); box-shadow: inset 0 1px 0 #ffffff0a; }
+.selection-highlight[data-axis='horizontal'] { transition: transform 220ms var(--ease-menu),width 220ms var(--ease-menu),height 220ms var(--ease-menu),opacity 130ms ease-out; }
+.selection-highlight[data-instant='true'] { transition: none; }
+.app .nav-pill > button:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
+.format-tabs { height: 40px; }
+.app .format-tabs > button { height: 32px; font-size: 13px; }
+.app .format-tabs > button[aria-pressed='true'] { -webkit-text-stroke: .25px currentColor; }
+.app .tabbar > :is(.app-tab,.remote-tab):hover { background: transparent; }
+.kadr-topnav .page-frame :is(.movie-detail-page,.settings-page,.taste-page,.help-page,.profile-page) { animation: panel-content-enter 160ms var(--ease-menu); }
+@keyframes panel-content-enter { from { opacity: .72; } to { opacity: 1; } }
+:root[data-input='keyboard'] :is(.nav-pill,.selection-highlight) { transition: none; }
+:root[data-input='keyboard'] .app .nav-pill { transform: none; }
+:root[data-motion='off'] :is(.nav-pill,.selection-highlight) { transition: none; animation: none; }
+:root[data-motion='off'] .app-header::before { transition: none; }
+:root[data-motion='off'] .app .nav-pill { transform: none; }
+:root[data-motion='off'] .kadr-topnav .page-frame :is(.movie-detail-page,.settings-page,.taste-page,.help-page,.profile-page) { animation: none; }
+@media(prefers-reduced-motion:reduce) { .app-header::before,.nav-pill,.selection-highlight { transition: none !important; } .app .nav-pill { transform: none !important; } .kadr-topnav .page-frame :is(.movie-detail-page,.settings-page,.taste-page,.help-page,.profile-page) { animation: none; } }
+@media(prefers-reduced-transparency:reduce),(forced-colors:active) { .app-header::before { backdrop-filter: none; } .app .nav-pill,.app .nav-round { backdrop-filter: none; background: var(--panel); } }

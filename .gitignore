@@ -1,0 +1,14 @@
+node_modules/
+dist/
+release/
+test-results/
+.local-profile/
+.tooling/
+.agents/
+*.log
+*.zip
+*.exe
+*.blockmap
+.env*
+AGENTS.md
+skills-lock.json

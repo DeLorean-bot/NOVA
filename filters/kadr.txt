@@ -1,0 +1,14 @@
+! Kadr: observed ad servers and standard VAST requests used by embedded players.
+||deltarockme.com^
+||vak345.com^
+||an.yandex.ru^
+||adfox.ru^
+||videonow.ru^
+/vast.xml$xmlhttprequest
+/vast?$xmlhttprequest
+/vast/$xmlhttprequest
+/vast.php$xmlhttprequest
+brogiro.cfd##.topAdPad
+brogiro.cfd###tgWrapper
+brogiro.cfd###TopAdMb
+brogiro.cfd##.adDown

@@ -1,0 +1,222 @@
+{
+  "at": 1794008574644,
+  "movies": [
+    {
+      "id": 7708133,
+      "type": "film",
+      "title": "Как ограбить банк",
+      "original": "How to Rob a Bank",
+      "year": 2026,
+      "poster": "https://st.kp.yandex.net/images/film_iphone/iphone360_7708133.jpg",
+      "cover": "",
+      "rating": null,
+      "age": "",
+      "genres": [
+        "фильм-ограбление"
+      ],
+      "description": "будущий фильм Дэвида Литча",
+      "imdbId": "tt35866986",
+      "premiereDate": "2026-11-12",
+      "premiereSource": "https://www.wikidata.org/wiki/Q134520822"
+    },
+    {
+      "id": 7530286,
+      "type": "film",
+      "title": "Знакомство с Факерами: Новая глава",
+      "original": "Focker-in-Law",
+      "year": 2026,
+      "poster": "https://st.kp.yandex.net/images/film_iphone/iphone360_7530286.jpg",
+      "cover": "",
+      "rating": null,
+      "age": "",
+      "genres": [
+        "комедийный фильм"
+      ],
+      "description": "фильм Джона Гамбурга (2026)",
+      "imdbId": "tt34966140",
+      "premiereDate": "2026-11-25",
+      "premiereSource": "https://www.wikidata.org/wiki/Q135713425"
+    },
+    {
+      "id": 10628575,
+      "type": "film",
+      "title": "Билли и мир магии",
+      "original": "Hexed",
+      "year": 2026,
+      "poster": "https://st.kp.yandex.net/images/film_iphone/iphone360_10628575.jpg",
+      "cover": "",
+      "rating": null,
+      "age": "",
+      "genres": [
+        "фэнтезийный фильм",
+        "комедийный фильм",
+        "фильм о взрослении"
+      ],
+      "description": "мультфильм Фон Вирасунторн и Джейсона Хэнда 2026 года",
+      "imdbId": "tt38077943",
+      "premiereDate": "2026-11-25",
+      "premiereSource": "https://www.wikidata.org/wiki/Q136027913"
+    },
+    {
+      "id": 5060245,
+      "type": "film",
+      "title": "Мстители: Доктор Дум",
+      "original": "",
+      "year": 2026,
+      "poster": "https://upload.wikimedia.org/wikipedia/en/e/ee/Avengers_Doomsday_poster.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+      "cover": "",
+      "rating": null,
+      "age": "",
+      "genres": [
+        "научно-фантастический фильм",
+        "боевик",
+        "приключенческий фильм",
+        "супергеройский фильм"
+      ],
+      "description": "будущий фильм Энтони и Джо Руссо",
+      "imdbId": "tt21357150",
+      "premiereDate": "2026-12-17",
+      "premiereSource": "https://www.wikidata.org/wiki/Q113244839"
+    },
+    {
+      "id": 5458743,
+      "type": "film",
+      "title": "Дюна: Часть третья",
+      "original": "",
+      "year": 2026,
+      "poster": "https://st.kp.yandex.net/images/film_iphone/iphone360_5458743.jpg",
+      "cover": "",
+      "rating": null,
+      "age": "",
+      "genres": [
+        "эпический фильм",
+        "научно-фантастический фильм"
+      ],
+      "description": "фильм Дени Вильнёва (2026)",
+      "imdbId": "tt31378509",
+      "premiereDate": "2026-12-18",
+      "premiereSource": "https://www.wikidata.org/wiki/Q124714245"
+    },
+    {
+      "id": 5782342,
+      "type": "film",
+      "title": "Angry Birds в кино 3",
+      "original": "The Angry Birds Movie 3",
+      "year": 2026,
+      "poster": "https://upload.wikimedia.org/wikipedia/en/0/08/The_Angry_Birds_Movie_3_teaser_poster.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+      "cover": "",
+      "rating": null,
+      "age": "",
+      "genres": [
+        "комедийный фильм"
+      ],
+      "description": "будущий мультфильм Джона Райса",
+      "imdbId": "tt32557122",
+      "premiereDate": "2026-12-23",
+      "premiereSource": "https://www.wikidata.org/wiki/Q128809323"
+    },
+    {
+      "id": 7293756,
+      "type": "film",
+      "title": "Пчеловод 2",
+      "original": "The Beekeeper 2",
+      "year": 2027,
+      "poster": "https://upload.wikimedia.org/wikipedia/en/1/1c/The_Beekeeper_2_poster.jpeg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+      "cover": "",
+      "rating": null,
+      "age": "",
+      "genres": [
+        "боевик"
+      ],
+      "description": "фильм Тимо Чахъянто (2027)",
+      "imdbId": "tt35935357",
+      "premiereDate": "2027-01-14",
+      "premiereSource": "https://www.wikidata.org/wiki/Q133728937"
+    },
+    {
+      "id": 6943907,
+      "type": "film",
+      "title": "Друзья-животные",
+      "original": "Animal Friends",
+      "year": 2027,
+      "poster": "https://upload.wikimedia.org/wikipedia/en/7/7d/Animal_Friends.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+      "cover": "",
+      "rating": null,
+      "age": "",
+      "genres": [
+        "комедийный боевик",
+        "анимационно-игровой фильм",
+        "роуд-муви"
+      ],
+      "description": "upcoming film directed by Peter Atencio",
+      "imdbId": "tt16911616",
+      "premiereDate": "2027-01-22",
+      "premiereSource": "https://www.wikidata.org/wiki/Q124946981"
+    },
+    {
+      "id": 467278,
+      "type": "film",
+      "title": "Скалолаз",
+      "original": "Cliffhanger",
+      "year": 2027,
+      "poster": "https://st.kp.yandex.net/images/film_iphone/iphone360_467278.jpg",
+      "cover": "",
+      "rating": null,
+      "age": "",
+      "genres": [
+        "приключенческий фильм",
+        "боевик",
+        "фильм-триллер",
+        "фильм-выживание"
+      ],
+      "description": "будущий фильм Жауме Кольет-Серры",
+      "imdbId": "tt1441251",
+      "premiereDate": "2027-02-24",
+      "premiereSource": "https://www.wikidata.org/wiki/Q118455791"
+    },
+    {
+      "id": 5964285,
+      "type": "film",
+      "title": "Годзилла и Конг: Сверхновая",
+      "original": "Godzilla x Kong: Supernova",
+      "year": 2027,
+      "poster": "https://st.kp.yandex.net/images/film_iphone/iphone360_5964285.jpg",
+      "cover": "",
+      "rating": null,
+      "age": "",
+      "genres": [
+        "фильм о монстрах",
+        "боевик",
+        "приключенческий фильм"
+      ],
+      "description": "будущий фильм Гранта Спутора",
+      "imdbId": "tt32561550",
+      "premiereDate": "2027-03-26",
+      "premiereSource": "https://www.wikidata.org/wiki/Q133820356"
+    },
+    {
+      "id": 7581663,
+      "type": "film",
+      "title": "Как приручить дракона 2",
+      "original": "How to Train Your Dragon 2",
+      "year": 2027,
+      "poster": "https://st.kp.yandex.net/images/film_iphone/iphone360_7581663.jpg",
+      "cover": "",
+      "rating": null,
+      "age": "",
+      "genres": [
+        "приключенческий фильм",
+        "боевик",
+        "фэнтезийный фильм",
+        "семейный фильм",
+        "подростковый фильм",
+        "фильм меча и колдовства",
+        "фильм о монстрах"
+      ],
+      "description": "upcoming film directed by Dean DeBlois",
+      "imdbId": "tt36416299",
+      "premiereDate": "2027-06-11",
+      "premiereSource": "https://www.wikidata.org/wiki/Q135002883"
+    }
+  ]
+}
