@@ -2,6 +2,7 @@
 :root { --menu-glass: rgba(10,10,12,.72); --menu-glass-hover: rgba(14,14,17,.78); --ease-menu: cubic-bezier(.25,1,.5,1); }
 :root[data-theme='light'] { --canvas: #fff; --menu-glass: rgba(255,255,255,.78); --menu-glass-hover: rgba(255,255,255,.88); }
 html,body,.app.kadr-topnav,.kadr-topnav .app-backdrop { background: var(--canvas); }
+html:not([data-theme]),html:not([data-theme]) body { background: transparent; }
 .reference-backdrop { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: var(--canvas); }
 .header-profile { max-width: 220px; }
 .header-profile .profile-label { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

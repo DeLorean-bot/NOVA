@@ -1,7 +1,7 @@
 {
   "name": "kadr-desktop",
   "productName": "NOVA",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "Фильмы и сериалы в одном окне",
   "author": "NOVA",
   "private": true,
@@ -37,7 +37,7 @@
     "appId": "local.kadr.desktop",
     "productName": "NOVA",
     "directories": {
-      "output": "release/0.8.2"
+      "output": "release/0.8.3"
     },
     "files": [
       "dist/**/*",

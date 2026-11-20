@@ -11,6 +11,7 @@ async function verify() {
   const out = path.join('test-results', 'nova-release-' + version + (exe ? '-packaged' : ''));
   await fs.mkdir(out, { recursive: true });
   await fs.writeFile(path.join(profile, 'library.json'), JSON.stringify({ theme:'dark', motion:true }));
+  await fs.writeFile(path.join(profile, 'language.json'), JSON.stringify('ru'));
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   const errors = [];

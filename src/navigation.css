@@ -99,7 +99,6 @@
 .kadr-topnav .hero .primary-button { background: var(--action-bg) !important; color: #fff !important; }
 .kadr-topnav .tabbar { margin-inline: 20px; }
 .kadr-topnav.player-immersive .app-header,.kadr-topnav.player-immersive .global-caption { display: none; }
-:root[data-startup='logo'] .app-header { opacity: 0; pointer-events: none; }
 @media(max-width:1100px) {
   .header-profile .profile-label,.header-profile > .material-symbol { display: none; }
   .header-profile { width: 44px; padding: 5px; justify-content: center; }

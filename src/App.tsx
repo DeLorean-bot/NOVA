@@ -1,4 +1,4 @@
-import { getLanguage, setLanguage, t, useLanguage, type Language } from './i18n'
+import { getLanguage, setLanguage, t, useLanguage, type LanguageMode } from './i18n'
 import { MoviePoster } from './MoviePoster'
 import { matchesRegion, regionOptions } from './catalog-regions'
 import { PosterHover } from './PosterHover'
@@ -67,6 +67,7 @@ export default function App() {
   const [optics,setOptics] = useState({status:'pending',maps:0})
   const glassDiagnostic = useCallback((d: GlassDiagnostic) => setOptics(p => { const status=d.error?'fallback':d.maps?'ready':'pending';return p.status===status&&p.maps===d.maps?p:{status,maps:d.maps} }),[])
   const [snapshot, setState] = useState(EMPTY)
+  const [languageMode, setLanguageMode] = useState<LanguageMode>(api?.initialLanguageMode ?? getLanguage())
   const [update, setUpdate] = useState<{ version: string } | null>(null)
   const { section, group, startSearch, navigate: setSection, navigateGroup, back, forward, query, filter, genre, sort, year, region, setFilter, setGenre, setSort, setYear, setRegion } = useCatalogNavigation()
   const catalogPositions = useRef(new Map<string, CatalogPosition>())
@@ -118,10 +119,9 @@ export default function App() {
   }, [])
   const { appearance, toggleTheme, changeToggle } = useAppearance(INITIAL_APPEARANCE, notify)
   const state = useMemo(() => ({ ...snapshot, ...appearance }), [snapshot, appearance])
-  const changeLanguage = async (next: Language) => {
-    const previous = getLanguage()
-    if (previous === next || !api) return
-    try { await api.language(next); setLanguage(next) }
+  const changeLanguage = async (next: LanguageMode) => {
+    if (languageMode === next || !api) return
+    try { setLanguage(await api.language(next)); setLanguageMode(next) }
     catch { notify(t('Не удалось сохранить язык')) }
   }
   const perform = useCallback(async (action: () => Promise<unknown>) => {
@@ -373,12 +373,12 @@ export default function App() {
   const localNavigation = section === 'releases' ? <PremiereNavigation value={releaseTab} change={(value, instant)=>{setNavigationInstant(instant);setReleaseTab(value)}} count={state.releases.length} instant={navigationInstant}/> : group === 'catalog' || group === 'library' ? <SectionNavigation section={section} navigate={go} taste={openTaste} instant={navigationInstant}/> : null
   const pageView = detail ? <PageFrame title={detail.title} parent={tasteOpen ? t("Мои оценки") : t(names[section])} back={()=>setDetail(null)}><Suspense fallback={<p role="status">{t("Загружаем описание…")}</p>}><MovieDetails key={detail.id} initial={detail} saved={favoriteIds.has(detail.id)} followed={state.releases.some(m=>m.id===detail.id)} busy={watching!==null} close={()=>setDetail(null)} watch={requestWatch} favorite={toggleFavorite} follow={m=>perform(()=>api!.followRelease(m))} notify={notify} taste={state.taste} rate={(m,a)=>perform(()=>api!.rateMovie(m,a))}/></Suspense></PageFrame>
     : tasteOpen ? <PageFrame title={t("Мои оценки")} parent={t('Моя NOVA')} back={backPanel}><Suspense fallback={<p role="status">{t("Загружаем оценки…")}</p>}><TasteDialog taste={state.taste} detail={setDetail} rate={(m,a)=>api!.rateMovie(m,a)} clearGenre={g=>api!.tasteGenres(state.taste.genres,state.taste.blockedGenres.filter(genre=>genre!==g))}/></Suspense></PageFrame>
-    : settingsOpen ? <PageFrame title={t("Настройки")} parent={t('Моя NOVA')} back={backPanel}><Suspense fallback={<p role="status">{t("Открываем настройки…")}</p>}><SettingsDialog state={state} update={update} changeLanguage={changeLanguage} changeMotion={value=>changeToggle('motion', value)} changeBackground={value=>changeToggle('glassBackground', value)}/></Suspense></PageFrame>
+    : settingsOpen ? <PageFrame title={t("Настройки")} parent={t('Моя NOVA')} back={backPanel}><Suspense fallback={<p role="status">{t("Открываем настройки…")}</p>}><SettingsDialog state={state} update={update} languageMode={languageMode} changeLanguage={changeLanguage} changeMotion={value=>changeToggle('motion', value)} changeBackground={value=>changeToggle('glassBackground', value)}/></Suspense></PageFrame>
     : profileOpen ? <PageFrame title={t("Профиль")} parent="" back={backPanel}><Suspense fallback={<p role="status">{t("Открываем профиль…")}</p>}><ProfilePage state={state} save={patch=>api!.updateProfile(patch)} collection={()=>go('favorites')} history={()=>go('history')} taste={openTaste} settings={openSettings}/></Suspense></PageFrame>
     : null
 
   return <GlassScene className={`app kadr-topnav ${state.immersive && !overlay && !unsafeMenu ? 'player-immersive' : ''}`} data-theme={state.theme} data-optics={optics.status} data-optic-maps={optics.maps} data-navigation-instant={navigationInstant} appearance={state.theme} material="regular" motion={reducedMotion?'none':'full'} maxSurfaces={12} onDiagnostic={glassDiagnostic}>
-    <StartupIntro ready={snapshot !== EMPTY || !api} />
+    <StartupIntro />
     <GlassContent className="app-backdrop">
     <div className="reference-backdrop" aria-hidden="true"/>
     <div className="window-bar global-caption" aria-hidden="true"/>

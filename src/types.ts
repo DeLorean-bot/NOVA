@@ -1,3 +1,5 @@
+import type { Language, LanguageMode } from './i18n'
+
 export type Movie = {
   id: number; type: 'film' | 'series'; title: string; original: string; year: number | null;
   poster: string; cover: string; rating: number | null; age: string; genres: string[]; description: string;
@@ -40,7 +42,8 @@ export type API = {
   onMenuAction?(listener:(id:string,value:string)=>void):()=>void;
   openMenu?(model:NativeMenuModel):Promise<{value?:string;keyboard:boolean}>;updateMenu?(model:NativeMenuModel):Promise<void>;closeMenu?(id:string):Promise<void>;focusMenu?(id:string,edge:'first'|'last'):Promise<void>;
   initialTheme: 'light' | 'dark';
-  initialLanguage?: 'ru' | 'en';
+  initialLanguage?: Language;
+  initialLanguageMode?: LanguageMode;
   initialMotion: boolean;
   initialGlassBackground: boolean;
   initialSidebarCollapsed: boolean;
@@ -69,7 +72,7 @@ export type API = {
   checkReleases(): Promise<AppState>; readReleases(id?: number): Promise<void>; dismissReleaseNotices(ids: number[]): Promise<void>;
   updateProfile(patch: Partial<LocalProfile>): Promise<void>;
   theme(mode: 'light' | 'dark'): Promise<void>;
-  language(value: 'ru' | 'en'): Promise<void>;
+  language(value: LanguageMode): Promise<Language>;
   motion(enabled: boolean): Promise<void>;
   glassBackground(enabled: boolean): Promise<void>;
   sidebar(collapsed: boolean): Promise<void>;

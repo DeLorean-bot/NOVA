@@ -1,41 +1,36 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useReducedMotion } from './kit/reduced-motion'
 import mark from './assets/nova-mark.png'
 
-export function StartupIntro({ ready }: { ready: boolean }) {
+export function StartupIntro() {
   const reduce = useReducedMotion()
-  const [minimumElapsed, setMinimumElapsed] = useState(false)
-  const [deadlineElapsed, setDeadlineElapsed] = useState(false)
-  const [finished, setFinished] = useState(reduce)
-  const revealing = minimumElapsed && (ready || deadlineElapsed)
+  const [phase, setPhase] = useState<'logo' | 'reveal' | 'done'>('logo')
+  const startup = reduce ? 'done' : phase
 
   useEffect(() => {
-    if (reduce) { setFinished(true); return }
-    const minimum = setTimeout(() => setMinimumElapsed(true), 480)
-    const deadline = setTimeout(() => setDeadlineElapsed(true), 1100)
-    const skip = () => setFinished(true)
+    if (reduce) { setPhase('done'); return }
+    const reveal = setTimeout(() => setPhase(current => current === 'logo' ? 'reveal' : current), 280)
+    const skip = () => setPhase('done')
     window.addEventListener('pointerdown', skip, { once: true })
     window.addEventListener('keydown', skip, { once: true })
     return () => {
-      clearTimeout(minimum)
-      clearTimeout(deadline)
+      clearTimeout(reveal)
       window.removeEventListener('pointerdown', skip)
       window.removeEventListener('keydown', skip)
     }
   }, [reduce])
   useEffect(() => {
-    if (!revealing || finished) return
-    const timer = setTimeout(() => setFinished(true), 310)
+    if (startup !== 'reveal') return
+    const timer = setTimeout(() => setPhase('done'), 180)
     return () => clearTimeout(timer)
-  }, [revealing, finished])
+  }, [startup])
   useEffect(() => {
-    const phase = finished ? 'done' : revealing ? 'reveal' : 'logo'
-    document.documentElement.dataset.startup = phase
-    performance.mark(`nova:startup:${phase}`)
-  }, [finished, revealing])
+    document.documentElement.dataset.startup = startup
+    performance.mark(`nova:startup:${startup}`)
+  }, [startup])
 
-  return finished ? null : <div className="startup-intro" aria-hidden="true" data-phase={revealing ? 'reveal' : 'logo'}>
-    <div className="intro-curtain"/>
+  return startup === 'done' ? null : createPortal(<div className="startup-intro" aria-hidden="true" data-phase={startup}>
     <div className="intro-wordmark"><img className="nova-mark" src={mark} alt=""/><span>NOVA</span></div>
-  </div>
+  </div>, document.body)
 }

@@ -11,9 +11,14 @@
   <a href="#screenshots">Screenshots</a> · <a href="#activity">Activity</a> · <a href="#install">Install</a> · <a href="#build-from-source">Build</a> · <a href="docs/support.md">Support</a> · <a href="README.ru.md">Русский</a>
 </p>
 
+> [!NOTE]
+> NOVA is in active development. It’s available for Windows today, and I plan to bring it to more devices. I’d love to hear what you want to see next and where the app falls short.
+>
+> [Suggest a feature](https://github.com/DeLorean-bot/NOVA/issues/new?title=Feature%20request%3A%20) · [Report a bug](https://github.com/DeLorean-bot/NOVA/issues/new?title=Bug%3A%20) · [Support development](docs/support.md)
+
 [![NOVA overview in dark mode. Click to enlarge.](docs/screenshots/overview-dark.png)](docs/screenshots/overview-dark.png)
 
-Browse movies and TV shows, open title details and trailers, and save films to your local collection. NOVA includes region and genre filters, ratings you can change, and notifications for followed releases. Choose Russian or English in **Settings → Interface language**. Catalog artwork, descriptions, and external players use the languages provided by their sources.
+Browse movies and TV shows, open title details and trailers, and save films to your local collection. NOVA includes region and genre filters, ratings you can change, and notifications for followed releases. The interface follows your Windows language preferences by default. You can choose Russian or English in **Settings → Interface language**. Catalog artwork, descriptions, and external players use the languages provided by their sources.
 
 ## Screenshots
 
@@ -35,8 +40,8 @@ Downloads count the Windows installer and portable ZIP. The chart records one sn
 
 | Download | How to launch |
 | --- | --- |
-| [Windows installer](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.2/NOVA-Setup-0.8.2.exe) | Run setup and open NOVA from Start. |
-| [Portable Windows ZIP](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.2/NOVA-0.8.2-win-x64.zip) | Extract the entire archive, then open `NOVA.exe`. |
+| [Windows installer](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.3/NOVA-Setup-0.8.3.exe) | Run setup and open NOVA from Start. |
+| [Portable Windows ZIP](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.3/NOVA-0.8.3-win-x64.zip) | Extract the entire archive, then open `NOVA.exe`. |
 
 [All releases and checksums](https://github.com/DeLorean-bot/NOVA/releases)
 

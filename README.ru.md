@@ -4,9 +4,14 @@
   <a href="https://github.com/DeLorean-bot/NOVA/releases/latest">Скачать</a> · <a href="#скриншоты">Скриншоты</a> · <a href="#статистика">Статистика</a> · <a href="docs/support.md">Поддержать</a> · <a href="README.md">English</a>
 </p>
 
+> [!NOTE]
+> NOVA ещё в разработке. Сейчас приложение доступно на Windows, а в будущем я планирую выпустить его и для других устройств. Буду рад вашим идеям, сообщениям об ошибках и поддержке проекта.
+>
+> [Предложить функцию](https://github.com/DeLorean-bot/NOVA/issues/new?title=Feature%20request%3A%20) · [Сообщить об ошибке](https://github.com/DeLorean-bot/NOVA/issues/new?title=Bug%3A%20) · [Поддержать донатом](docs/support.md#поддержать-nova)
+
 [![Главный экран NOVA в тёмной теме](docs/screenshots/overview-dark.png)](docs/screenshots/overview-dark.png)
 
-NOVA — каталог фильмов и сериалов для Windows. Подборки, поиск с фильтрами, рейтинги, трейлеры и личная медиатека в одном окне. В **Настройки → Язык интерфейса** доступны русский и английский. Язык обложек, описаний и внешних плееров зависит от источника.
+NOVA — каталог фильмов и сериалов для Windows. Подборки, поиск с фильтрами, рейтинги, трейлеры и личная медиатека в одном окне. По умолчанию язык интерфейса определяется по настройкам Windows. В **Настройки → Язык интерфейса** можно вручную выбрать русский или английский. Язык обложек, описаний и внешних плееров зависит от источника.
 
 ## Скриншоты
 
@@ -24,7 +29,7 @@ NOVA — каталог фильмов и сериалов для Windows. По�
 
 ## Установка
 
-[Установщик 0.8.2](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.2/NOVA-Setup-0.8.2.exe) · [ZIP без установки](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.2/NOVA-0.8.2-win-x64.zip) · [Все релизы и контрольные суммы](https://github.com/DeLorean-bot/NOVA/releases)
+[Установщик 0.8.3](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.3/NOVA-Setup-0.8.3.exe) · [ZIP без установки](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.3/NOVA-0.8.3-win-x64.zip) · [Все релизы и контрольные суммы](https://github.com/DeLorean-bot/NOVA/releases)
 
 Для запуска из ZIP распакуйте архив целиком и откройте `NOVA.exe`. Поиск открывается по **Ctrl+L**, полный экран плеера — по **F**, полный экран приложения — по **F11**.
 

@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('kadr', {
   focusMenu: (id, edge) => invoke('menu-focus', id, edge),
   initialTheme: process.argv.includes('--kadr-theme=dark') ? 'dark' : 'light',
   initialLanguage: process.argv.includes('--kadr-language=en') ? 'en' : 'ru',
+  initialLanguageMode: process.argv.includes('--kadr-language-mode=system') ? 'system' : process.argv.includes('--kadr-language=en') ? 'en' : 'ru',
   initialMotion: !process.argv.includes('--kadr-motion=off'),
   initialGlassBackground: !process.argv.includes('--kadr-glass-background=off'),
   initialSidebarCollapsed: process.argv.includes('--kadr-sidebar=compact'),

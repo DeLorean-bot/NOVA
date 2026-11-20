@@ -70,8 +70,6 @@ function createNativeMenus({BrowserWindow,ipcMain,parent,getState,getView,onComm
   const move=()=>position(),resize=()=>close(null,false),blur=()=>setImmediate(()=>{if(!parent.isDestroyed()&&!parent.isFocused()&&!popup?.isFocused())close(null,false)});
   parent.on('move',move);parent.on('resize',resize);parent.on('blur',blur);parent.on('minimize',resize);
   function dispose(){if(disposed)return;disposed=true;close(null,false);ipcMain.removeHandler('kadr:popup-ready');ipcMain.removeListener('kadr:popup-command',command);parent.removeListener('move',move);parent.removeListener('resize',resize);parent.removeListener('blur',blur);parent.removeListener('minimize',resize);if(popup&&!popup.isDestroyed())popup.destroy()}
-  // Preload the small renderer before the first click, without showing or focusing it.
-  void ensure().catch(()=>{});
   return {open,update,focus,close,dispose,isOpen:()=>Boolean(current)};
 }
 module.exports={createNativeMenus};

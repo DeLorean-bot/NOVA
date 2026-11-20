@@ -4,6 +4,7 @@ const { readProfile, patchProfile } = require('./profile.cjs');
 const { normalViewBounds, shouldShowEmbeddedView } = require('./view-layout.cjs');
 const { app, BrowserWindow, WebContentsView, ipcMain, session, shell, Menu, webFrameMain, globalShortcut, Notification, screen, nativeImage, nativeTheme } = require('electron');
 const englishMessages = require('./locales/en.json');
+const { resolveLanguage } = require('./language.cjs');
 const { checkForUpdate } = require('./releases-update.cjs');
 const path = require('node:path');
 const fs = require('node:fs/promises');
@@ -42,7 +43,10 @@ let nativeMenus;
 let win, dataFile, appearanceStore, writeQueue = Promise.resolve(), blacklist, blacklistTime = 0;
 let state = { profile: readProfile(null, nativeImage.createFromDataURL), favorites: [], history: [], releases: [], sites: [], theme: 'light', motion: true, glassBackground: true, taste: cleanTaste({}, cleanMovie), sidebarCollapsed: false };
 let language = 'ru';
+let languageMode = 'system';
+let languageWrite = Promise.resolve();
 let updateRequest;
+let playerSessionReady;
 const uiText = (message, ...values) => {
   const template = language === 'en' && Object.hasOwn(englishMessages, message) ? englishMessages[message] : message;
   return template.replace(/\{(\d+)\}/g, (match, index) => Number(index) < values.length ? String(values[Number(index)]) : match);
@@ -524,12 +528,19 @@ function registerHandlers() {
     if (update) await shell.openExternal(update.url);
   });
   handle('language', async value => {
-    if (!['ru', 'en'].includes(value)) throw new Error('Неизвестный язык');
-    if (value === language) return;
-    const file = path.join(app.getPath('userData'), 'language.json');
-    await fs.writeFile(file + '.tmp', JSON.stringify(value), 'utf8');
-    await fs.rename(file + '.tmp', file);
-    language = value;
+    if (!['system', 'ru', 'en'].includes(value)) throw new Error('Неизвестный язык');
+    const write = languageWrite.then(async () => {
+      if (value !== languageMode) {
+        const file = path.join(app.getPath('userData'), 'language.json');
+        await fs.writeFile(file + '.tmp', JSON.stringify(value), 'utf8');
+        await fs.rename(file + '.tmp', file);
+        languageMode = value;
+      }
+      language = resolveLanguage(languageMode, app.getPreferredSystemLanguages());
+      return language;
+    });
+    languageWrite = write.catch(() => {});
+    return write;
   });
   handle('catalog', catalog);
   handle('search', sourceSearch);
@@ -582,13 +593,15 @@ function registerHandlers() {
     // Metadata may already be available, so opening a trailer need not wait for another search.
     const known=knownMovies.get(id);if(known)movie={...movie,...known};
     const destination=trailerDestination(movie);
+    await preparePlayerSession();
     const existing = [...tabs.values()].find(t => t.kind === 'trailer');
     if (existing) closeTab(existing.id);
     if (tabs.size >= 10) throw new Error('Закройте одну из вкладок');
     return remoteTab({ title: `${destination.direct?'Трейлер':'Трейлеры'} · ${movie.title}`, url: destination.url, kind: 'trailer', movie, embedTrailer:destination.direct });
   });
-  handle('open', value => {
+  handle('open', async value => {
     const url = webUrl(value);
+    await preparePlayerSession();
     const existing = [...tabs.values()].find(t => t.url === url);
     if (existing) { activate(existing.id); return existing.id; }
     if (tabs.size >= 10) throw new Error('Открыто 10 вкладок. Закройте одну из них.');
@@ -647,6 +660,7 @@ function registerHandlers() {
     }
     const providers = [...await playersFor(movie.id)];
     if (!providers.length) throw new Error('Источник пока не нашёл плеер. Добавьте фильм в «Ожидаю», чтобы узнать о появлении.');
+    await preparePlayerSession();
     const preferred = providers.findIndex(p => p.name.toLowerCase() === state.preferredProvider?.toLowerCase());
     if (preferred > 0) providers.unshift(providers.splice(preferred, 1)[0]);
     if (preferred < 0) { const verified = providers.findIndex(p => p.name.toLowerCase() === 'collaps'); if (verified > 0) providers.unshift(providers.splice(verified, 1)[0]); }
@@ -744,13 +758,40 @@ function registerHandlers() {
   });
 }
 
+function preparePlayerSession() {
+  if (playerSessionReady) return playerSessionReady;
+  const filtersDir = path.join(app.getPath('userData'), 'filters');
+  playerSessionReady = adblock.initialize(filtersDir).then(() => {
+    const playerSession = session.fromPartition('persist:kadr-sites');
+    playerSession.setUserAgent(app.userAgentFallback);
+    playerSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (details, callback) => {
+      const tab = [...tabs.values()].find(t => t.view.webContents.id === details.webContentsId);
+      if (!tab || !tab.adblockEnabled) { callback({ cancel: false }); return; }
+      const documentUrl = details.frame?.url || details.referrer || tab.view.webContents.getURL() || tab.url;
+      const blocked = adblock.shouldBlock(details.url, details.resourceType, documentUrl);
+      callback({ cancel: blocked });
+      if (blocked) tab.blocked++;
+    });
+    playerSession.setPermissionRequestHandler((_wc, permission, callback) => callback(permission === 'fullscreen'));
+    playerSession.setPermissionCheckHandler((_wc, permission) => permission === 'fullscreen');
+    playerSession.on('will-download', event => event.preventDefault());
+    adblock.update(filtersDir).catch(() => {});
+  }).catch(error => {
+    playerSessionReady = undefined;
+    throw error;
+  });
+  return playerSessionReady;
+}
+
 async function createWindow() {
   if (process.platform === 'win32') app.setAppUserModelId('local.kadr.desktop');
   dataFile = path.join(app.getPath('userData'), 'library.json');
   await fs.mkdir(app.getPath('userData'), { recursive: true });
   try {
-    language = JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'language.json'), 'utf8')) === 'en' ? 'en' : 'ru';
+    const saved = JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'language.json'), 'utf8'));
+    if (saved === 'ru' || saved === 'en') languageMode = saved;
   } catch {}
+  language = resolveLanguage(languageMode, app.getPreferredSystemLanguages());
   try {
     const saved = JSON.parse(await fs.readFile(dataFile, 'utf8'));
     state.profile = readProfile(saved.profile, nativeImage.createFromDataURL);
@@ -769,29 +810,12 @@ async function createWindow() {
     const cache = JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'restrictions.json'), 'utf8'));
     if (Array.isArray(cache.ids) && Number.isFinite(cache.at)) { blacklist = new Set(cache.ids); blacklistTime = cache.at; }
   } catch {}
-  const filtersDir = path.join(app.getPath('userData'), 'filters');
   const browserUserAgent = app.userAgentFallback.replace(/\s(?:Electron|Кадр|Kadr|kadr-desktop|NOVA)\/[^\s]+/gi, '');
   // Cross-origin iframe JS uses app.userAgentFallback even when the parent
   // webContents and HTTP session override their UA. Alloha signs its movie
   // request using navigator.userAgent, so these must match in every frame.
   app.userAgentFallback = browserUserAgent;
   session.defaultSession.setUserAgent(browserUserAgent);
-  await session.defaultSession.forceReloadProxyConfig();
-  session.fromPartition('persist:kadr-sites').setUserAgent(browserUserAgent);
-  await session.fromPartition('persist:kadr-sites').forceReloadProxyConfig();
-  await adblock.initialize(filtersDir);
-  adblock.update(filtersDir).catch(() => {});
-  session.fromPartition('persist:kadr-sites').webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (details, callback) => {
-    const tab = [...tabs.values()].find(t => t.view.webContents.id === details.webContentsId);
-    if (!tab || !tab.adblockEnabled) { callback({ cancel: false }); return; }
-    const documentUrl = details.frame?.url || details.referrer || tab.view.webContents.getURL() || tab.url;
-    const blocked = adblock.shouldBlock(details.url, details.resourceType, documentUrl);
-    callback({ cancel: blocked });
-    if (blocked) tab.blocked++;
-  });
-  session.fromPartition('persist:kadr-sites').setPermissionRequestHandler((_wc, permission, callback) => callback(permission === 'fullscreen'));
-  session.fromPartition('persist:kadr-sites').setPermissionCheckHandler((_wc, permission) => permission === 'fullscreen');
-  session.fromPartition('persist:kadr-sites').on('will-download', (event) => event.preventDefault());
   // The user currently wants isolated tests on the primary monitor. Set the
   // position before showing the first frame; never move their running app.
   appearanceStore = createAppearanceStore(app.getPath('userData'), (appearance, key) => {
@@ -811,7 +835,7 @@ async function createWindow() {
     backgroundColor: state.theme === 'light' ? '#ffffff' : '#0b0b0d', roundedCorners: true, show: false,
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: state.theme === 'light' ? '#ffffff' : '#0b0b0d', symbolColor: state.theme === 'light' ? '#252623' : '#f3f1ed', height: 32 },
-    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false, disableHtmlFullscreenWindowResize: true, additionalArguments: [`--kadr-language=${language}`, `--kadr-theme=${state.theme}`, `--kadr-motion=${state.motion ? 'on' : 'off'}`, `--kadr-glass-background=${state.glassBackground ? 'on' : 'off'}`, `--kadr-sidebar=${state.sidebarCollapsed ? 'compact' : 'full'}`] },
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false, disableHtmlFullscreenWindowResize: true, additionalArguments: [`--kadr-language=${language}`, `--kadr-language-mode=${languageMode}`, `--kadr-theme=${state.theme}`, `--kadr-motion=${state.motion ? 'on' : 'off'}`, `--kadr-glass-background=${state.glassBackground ? 'on' : 'off'}`, `--kadr-sidebar=${state.sidebarCollapsed ? 'compact' : 'full'}`] },
   });
   if (process.platform === 'win32') {
     const window = win;
@@ -840,7 +864,8 @@ async function createWindow() {
   win.on('enter-full-screen', () => { syncEscapeShortcut(); layout(); emit(); });
   win.on('leave-full-screen', () => { syncEscapeShortcut(); if (!fullscreenExit && (fullscreenWanted || tabs.get(active)?.htmlFullscreen)) exitFullscreen(); else { layout(); emit(); } });
   win.on('closed', () => { nativeMenus?.dispose(); globalShortcut.unregister('Escape'); globalShortcut.unregister('F11'); for (const t of tabs.values()) if (!t.view.webContents.isDestroyed()) t.view.webContents.close(); tabs.clear(); win = null; });
-  win.once('ready-to-show', () => testProfile ? win.showInactive() : win.show());
+  if (testProfile) win.showInactive();
+  else win.show();
   if (!testProfile) updateRequest = checkForUpdate(chromiumFetch, app.getVersion()).catch(() => null);
   await win.loadFile(localPage);
   playbackTimer = setInterval(pollPlayback, 4000); playbackTimer.unref();
@@ -850,7 +875,11 @@ async function createWindow() {
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+  app.on('second-instance', () => {
+    if (!win || win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+  });
   app.whenReady().then(async () => { registerHandlers(); await createWindow(); });
   app.on('window-all-closed', () => app.quit());
   app.on('before-quit', event => { clearInterval(playbackTimer); clearInterval(releasesTimer); if (writeQueue) { event.preventDefault(); const pending = save(); writeQueue = null; Promise.allSettled([pending, appearanceStore?.flush()]).then(() => app.quit()); } });

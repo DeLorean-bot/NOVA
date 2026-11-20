@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import english from '../electron/locales/en.json'
 
 export type Language = 'ru' | 'en'
+export type LanguageMode = Language | 'system'
 const messages: Record<string, string> = english
 let language: Language = window.kadr?.initialLanguage === 'en' ? 'en' : 'ru'
 const subscribers = new Set<() => void>()
