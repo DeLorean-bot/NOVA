@@ -4,7 +4,7 @@
   <a href="https://github.com/DeLorean-bot/NOVA/releases/latest"><img alt="Download for Windows" src="https://img.shields.io/github/v/release/DeLorean-bot/NOVA?label=Download%20for%20Windows&color=4e76fa"></a>
   <a href="https://github.com/DeLorean-bot/NOVA/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/DeLorean-bot/NOVA?color=839dff"></a>
   <a href="https://github.com/DeLorean-bot/NOVA/actions/workflows/ci.yml"><img alt="Windows CI" src="https://github.com/DeLorean-bot/NOVA/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="docs/support.md"><img alt="Support NOVA with Litecoin" src="https://img.shields.io/badge/Support-Litecoin-344b82?logo=litecoin"></a>
+  <a href="docs/support.md"><img alt="Support NOVA" src="https://img.shields.io/badge/Support-Crypto-344b82"></a>
 </p>
 
 <p align="center">
@@ -60,6 +60,6 @@ Use `npm run check`, `npm run build`, then `npm test` to verify a change. Use `n
 
 ## Support and license
 
-[Support NOVA with Litecoin](docs/support.md) · [Report an issue](https://github.com/DeLorean-bot/NOVA/issues/new)
+[Support NOVA](docs/support.md) · [Report an issue](https://github.com/DeLorean-bot/NOVA/issues/new)
 
 NOVA is released under [GPL-3.0-only](LICENSE). You can use, study, modify, and redistribute it under the terms of the license. [Third-party notices](THIRD_PARTY_NOTICES.md)

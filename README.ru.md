@@ -34,6 +34,6 @@ NOVA — каталог фильмов и сериалов для Windows. По�
 
 ## Поддержка и лицензия
 
-[Поддержать через Litecoin](docs/support.md#поддержать-nova) · [Сообщить о проблеме](https://github.com/DeLorean-bot/NOVA/issues/new)
+[Поддержать NOVA](docs/support.md#поддержать-nova) · [Сообщить о проблеме](https://github.com/DeLorean-bot/NOVA/issues/new)
 
 [GPL-3.0-only](LICENSE) разрешает изучать, изменять и распространять приложение на условиях лицензии. [Лицензии сторонних компонентов](THIRD_PARTY_NOTICES.md)
