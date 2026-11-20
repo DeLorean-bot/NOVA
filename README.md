@@ -1,35 +1,44 @@
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="src/assets/nova-mark.png"><img src="docs/nova-mark-light.png" width="112" alt="NOVA"></picture></p>
-<h1 align="center">NOVA</h1>
-<p align="center">A Windows desktop catalog for movies and TV shows.</p>
+<p align="center"><a href="https://github.com/DeLorean-bot/NOVA/releases/latest"><img src="docs/nova-banner.png" width="960" alt="NOVA — Movies and TV shows on Windows"></a></p>
 
 <p align="center">
-  <a href="https://github.com/DeLorean-bot/NOVA/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/DeLorean-bot/NOVA?label=Windows%20release"></a>
+  <a href="https://github.com/DeLorean-bot/NOVA/releases/latest"><img alt="Download for Windows" src="https://img.shields.io/github/v/release/DeLorean-bot/NOVA?label=Download%20for%20Windows&color=4e76fa"></a>
+  <a href="https://github.com/DeLorean-bot/NOVA/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/DeLorean-bot/NOVA?color=839dff"></a>
   <a href="https://github.com/DeLorean-bot/NOVA/actions/workflows/ci.yml"><img alt="Windows CI" src="https://github.com/DeLorean-bot/NOVA/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="LICENSE"><img alt="GPL-3.0-only" src="https://img.shields.io/badge/license-GPL--3.0--only-blue"></a>
+  <a href="docs/support.md"><img alt="Support NOVA with Litecoin" src="https://img.shields.io/badge/Support-Litecoin-344b82?logo=litecoin"></a>
 </p>
 
-<p align="center"><a href="https://github.com/DeLorean-bot/NOVA/releases/latest">Download for Windows</a> · <a href="README.ru.md">Русский</a> · <a href="docs/architecture.md">Architecture</a></p>
+<p align="center">
+  <a href="#screenshots">Screenshots</a> · <a href="#activity">Activity</a> · <a href="#install">Install</a> · <a href="#build-from-source">Build</a> · <a href="docs/support.md">Support</a> · <a href="README.ru.md">Русский</a>
+</p>
 
-![NOVA overview in dark mode](docs/screenshots/overview-dark.png)
+[![NOVA overview in dark mode. Click to enlarge.](docs/screenshots/overview-dark.png)](docs/screenshots/overview-dark.png)
 
-## What you can do
-
-- Browse and search movies and shows, filter by genre or production region, and scroll to load more.
-- Open a title page for the synopsis, ratings and trailers. Play available video in an embedded player.
-- Save a collection, edit your ratings, and follow releases. Your library and viewing history are stored locally.
-- Choose Russian or English in **Settings → Interface language**. Catalog metadata and external players use the languages their sources provide.
+Browse movies and TV shows, open title details and trailers, and save films to your local collection. NOVA includes region and genre filters, ratings you can change, and notifications for followed releases. Choose Russian or English in **Settings → Interface language**. Catalog artwork, descriptions, and external players use the languages provided by their sources.
 
 ## Screenshots
 
-| Search | Settings |
+| Search · Dark theme | Settings · Light theme |
 | --- | --- |
-| ![Compact English search on the dark theme](docs/screenshots/search-dark.png) | ![English settings on the light theme](docs/screenshots/settings-light.png) |
+| [![Search in English](docs/screenshots/search-dark.png)](docs/screenshots/search-dark.png) | [![Settings in English](docs/screenshots/settings-light.png)](docs/screenshots/settings-light.png) |
 
 Screenshots use a separate profile. Movie artwork and provider marks belong to their respective owners.
 
+## Activity
+
+[![Daily history of NOVA stars and Windows release downloads](docs/activity/metrics.svg)](docs/activity/README.md)
+
+[Stars](https://github.com/DeLorean-bot/NOVA/stargazers) · [Release assets](https://github.com/DeLorean-bot/NOVA/releases) · [Raw daily samples](docs/activity/history.json) · [Architecture and startup timings](docs/architecture.md)
+
+Downloads count the Windows installer and portable ZIP. The chart records one snapshot per day from the GitHub API.
+
 ## Install
 
-Download the installer or the ZIP from [Releases](https://github.com/DeLorean-bot/NOVA/releases). For the ZIP, extract the entire folder and open `NOVA.exe`. If you previously used Kadr, NOVA reads the same library under `%APPDATA%\Кадр`.
+| Download | How to launch |
+| --- | --- |
+| [Windows installer](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.2/NOVA-Setup-0.8.2.exe) | Run setup and open NOVA from Start. |
+| [Portable Windows ZIP](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.2/NOVA-0.8.2-win-x64.zip) | Extract the entire archive, then open `NOVA.exe`. |
+
+[All releases and checksums](https://github.com/DeLorean-bot/NOVA/releases)
 
 | Shortcut | Action |
 | --- | --- |
@@ -40,15 +49,17 @@ Download the installer or the ZIP from [Releases](https://github.com/DeLorean-bo
 
 ## Build from source
 
-Windows x64 and Node.js 24 are used for development and CI.
+NOVA uses Node.js 24 for Windows development and CI.
 
 ```powershell
 npm ci
 npm start
 ```
 
-Run `npm run check` and `npm test` before submitting a patch. Use `npm run dist` to build the Windows installer and ZIP. To update English wording, edit [the English message catalog](electron/locales/en.json). See [Architecture and startup measurements](docs/architecture.md) for the runtime boundaries and how to reproduce the chart.
+Use `npm run check`, `npm run build`, then `npm test` to verify a change. Use `npm run dist` to build the Windows installer and ZIP. English interface text lives in [the translation catalog](electron/locales/en.json).
 
-## License
+## Support and license
 
-NOVA is released under [GPL-3.0-only](LICENSE). You can use, study, modify, and redistribute it under the terms of the license. See [third-party notices](THIRD_PARTY_NOTICES.md) for bundled components and assets.
+[Support NOVA with Litecoin](docs/support.md) · [Report an issue](https://github.com/DeLorean-bot/NOVA/issues/new)
+
+NOVA is released under [GPL-3.0-only](LICENSE). You can use, study, modify, and redistribute it under the terms of the license. [Third-party notices](THIRD_PARTY_NOTICES.md)

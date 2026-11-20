@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 264" role="img"
+    aria-labelledby="title description">
+  <title id="title">NOVA GitHub activity</title>
+  <desc id="description">0 stars and 0 Windows downloads on 2026-11-20. First recorded sample.</desc>
+  <rect width="960" height="264" rx="22" fill="#0e1015"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <rect x="18" y="16" width="456" height="202" rx="16" fill="#171a21" stroke="#30343d"/>
+    <text x="38" y="45" fill="#d2d8e6" font-size="14">Repository stars</text>
+    <text x="38" y="71" fill="#fff" font-size="21" font-weight="600">0 stars</text>
+    <path d="M63 173H431" stroke="#333844"/><text x="54" y="177" text-anchor="end" fill="#a9b1c3" font-size="11">0</text><path d="M63 91H431" stroke="#333844"/><text x="54" y="95" text-anchor="end" fill="#a9b1c3" font-size="11">1</text>
+    <polyline points="63.0,173.0" fill="none" stroke="#819cff" stroke-width="2.5"/>
+    <circle cx="63" cy="173" r="4" fill="#819cff"/>
+    <text x="63" y="199" text-anchor="start" font-size="11" fill="#a9b1c3">2026-11-20</text>
+
+  </g>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <rect x="486" y="16" width="456" height="202" rx="16" fill="#171a21" stroke="#30343d"/>
+    <text x="506" y="45" fill="#d2d8e6" font-size="14">Windows downloads</text>
+    <text x="506" y="71" fill="#fff" font-size="21" font-weight="600">0 downloads</text>
+    <path d="M531 173H899" stroke="#333844"/><text x="522" y="177" text-anchor="end" fill="#a9b1c3" font-size="11">0</text><path d="M531 91H899" stroke="#333844"/><text x="522" y="95" text-anchor="end" fill="#a9b1c3" font-size="11">1</text>
+    <polyline points="531.0,173.0" fill="none" stroke="#67d4ad" stroke-width="2.5"/>
+    <circle cx="531" cy="173" r="4" fill="#67d4ad"/>
+    <text x="531" y="199" text-anchor="start" font-size="11" fill="#a9b1c3">2026-11-20</text>
+
+  </g>
+  <text x="32" y="242" fill="#a9b1c3" font-family="Segoe UI, Arial, sans-serif" font-size="12">GitHub · 2026-11-20 UTC · First recorded sample</text>
+  <text x="927" y="242" text-anchor="end" fill="#a9b1c3" font-family="Segoe UI, Arial, sans-serif" font-size="12">Installer 0 · ZIP 0</text>
+</svg>

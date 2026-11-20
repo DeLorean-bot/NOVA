@@ -1,0 +1,33 @@
+name: Repository metrics
+
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repository-metrics
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node scripts/update-repository-metrics.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Publish daily sample
+        run: |
+          git add -- docs/activity/history.json docs/activity/metrics.svg
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Refresh repository metrics'
+          git pull --rebase
+          git push

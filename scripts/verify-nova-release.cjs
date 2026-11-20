@@ -6,7 +6,7 @@ const path = require('node:path');
 const { version } = require('../package.json');
 
 async function verify() {
-  const exe = process.env.KADR_TEST_EXE;
+  const exe = process.env.NOVA_TEST_EXE || process.env.KADR_TEST_EXE;
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'nova-release-'));
   const out = path.join('test-results', 'nova-release-' + version + (exe ? '-packaged' : ''));
   await fs.mkdir(out, { recursive: true });
