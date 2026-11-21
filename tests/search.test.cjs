@@ -58,6 +58,31 @@ test('plot lookup searches article text with a dedicated critical reception quer
   assert.ok(searches.some(query => query.includes('(review OR reception OR critics)')));
 });
 
+test('plot search retries the distinctive clues from a conversational query with spelling mistakes', async () => {
+  const searches = [];
+  const query = 'ну кароч там пацан в падвале чота по телефону спризраками общаеться';
+  const candidates = await findPlotMovies(query, async url => {
+    const params = new URL(url).searchParams;
+    if (params.get('action') === 'wbgetentities') {
+      const claim = value => [{ rank: 'normal', mainsnak: { datavalue: { value } } }];
+      return { entities: {
+        Q1: { claims: { P345: claim('tt7144666') } },
+        Q2: { claims: { P345: claim('tt0816692') } },
+      } };
+    }
+    const text = params.get('gsrsearch');
+    searches.push(text);
+    const corrected = text.includes('подвал') && text.includes('телефон') && !text.includes('спризраками');
+    const ids = corrected ? ['Q1', 'Q2'] : text.includes('спризраками') ? ['Q2'] : [];
+    return { query: { pages: ids.map((id, index) => ({ index, pageprops: { wikibase_item: id } })) } };
+  }, async candidate => candidate.imdb);
+  assert.equal(candidates[0], 'tt7144666');
+  assert.ok(searches.includes('подвал телефон призрак фильм'));
+  assert.ok(searches.includes('подвал телефон фильм'));
+  assert.ok(searches.some(text => text.includes('спризраками')));
+  assert.ok(searches.every(text => !text.includes('кароч') && !text.includes('чота')));
+});
+
 test('excluding countries hides co-productions with any chosen country and keeps others', () => {
   const excluded = ['CN', 'JP', 'KR'];
   assert.equal(excludesCountry('США, Корея Южная', excluded), true);

@@ -10,6 +10,7 @@
 - **React / React DOM**, Meta Platforms, Inc. and affiliates. MIT; `licenses/React-MIT.txt` and installed package licenses.
 - **NOVA logo artwork**, supplied by the project owner. The mark is extracted from the reference and a monochrome variant is used for each theme.
 - **Electron**, OpenJS Foundation and contributors. Electron and Chromium notices are included in the packaged runtime.
+- **nspell**, Titus Wormer, MIT, and **dictionary-ru**, Russian Hunspell dictionary from LibreOffice, BSD-3-Clause. The packaged dependencies include their original licenses. Used for spelling alternatives in plot search.
 
 Unmodified dependency licenses remain in the respective packages. The source archive includes the application source, copied ABP runtime source, filter snapshots and build configuration.
 

@@ -105,7 +105,8 @@ async function searchCatalog(query, page = 1) {
   if (page !== 1 || words.length < 2 || /^https?:\/\//i.test(text)) return sourceSearch(text, page);
   const titleResult = text.length <= 250 ? await sourceSearch(text).catch(error => ({ error })) : { movies: [], nextPage: null };
   const exactTitle = titleResult.movies?.some(movie => [movie.title, movie.original].some(title => titleKey(title) === titleKey(text)));
-  if (exactTitle || (titleResult.movies?.length && words.length < 4)) return titleResult;
+  const description = (text.match(/\p{L}+/gu)?.length ?? 0) >= 5;
+  if (exactTitle || (titleResult.movies?.length && !description && words.length < 4)) return titleResult;
   const movies = await findPlotMovies(text, async url => {
     const response = await chromiumFetch(url, {
       headers: { 'User-Agent': 'NOVA (https://github.com/DeLorean-bot/NOVA)', Accept: 'application/json' },
@@ -120,8 +121,9 @@ async function searchCatalog(query, page = 1) {
     throw titleResult.error || error;
   });
   if (!movies.length && titleResult.error) throw titleResult.error;
+  const titles = titleResult.movies ?? [];
   return {
-    movies: [...new Map([...(titleResult.movies ?? []), ...movies].map(movie => [movie.id, movie])).values()],
+    movies: [...new Map((description ? [...movies, ...titles] : [...titles, ...movies]).map(movie => [movie.id, movie])).values()],
     nextPage: titleResult.nextPage ?? null,
   };
 }
