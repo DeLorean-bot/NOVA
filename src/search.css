@@ -36,18 +36,23 @@
 .docs-search-message { margin: 0; padding: 20px 16px 24px; color: var(--secondary); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .search-progress {
   display: flex; align-items: center; min-height: 26px; padding: 4px 15px;
-  color: var(--secondary); font-size: 12px; font-weight: 550; line-height: 18px;
+  color: var(--search-progress-ink); font-size: 12px; font-weight: 550; line-height: 18px;
+  --search-progress-ink: var(--secondary);
   --search-progress-glow: #a5b9ff;
 }
-:root[data-theme=light] .search-progress { --search-progress-glow: #294fbd; }
+:root[data-theme=light] .search-progress {
+  --search-progress-ink: #242939;
+  --search-progress-glow: #1746c5;
+  font-weight: 650;
+}
 .search-progress-label {
-  color: transparent; background: linear-gradient(110deg,var(--secondary) 36%,var(--search-progress-glow) 50%,var(--secondary) 64%) 100% 0 / 250% 100%;
+  color: transparent; background: linear-gradient(110deg,var(--search-progress-ink) 36%,var(--search-progress-glow) 50%,var(--search-progress-ink) 64%) 100% 0 / 250% 100%;
   background-clip: text; animation: search-label-sheen 1.8s linear infinite;
 }
 @keyframes search-label-sheen { to { background-position: 0 0; } }
-:root[data-motion=off] .search-progress-label { animation: none; color: var(--secondary); background: none; }
+:root[data-motion=off] .search-progress-label { animation: none; color: inherit; background: none; }
 @media (prefers-reduced-motion: reduce), (forced-colors: active) {
-  .search-progress-label { animation: none; color: var(--secondary); background: none; }
+  .search-progress-label { animation: none; color: inherit; background: none; }
 }
 .docs-search-all { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 38px; padding: 8px 14px; border: 0; border-radius: 10px; color: var(--secondary); background: transparent; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
 .docs-search-all:hover { background: #ffffff10; color: var(--fg); }
