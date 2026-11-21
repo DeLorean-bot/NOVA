@@ -2,14 +2,15 @@ import { t } from './i18n'
 import { useDialogDismiss } from './useDialogDismiss'
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import { ArrowRight, Check, ChevronDown, Film, Search, Tv, X } from './icons'
-import type { Movie } from './types'
+import type { Movie, SearchPhase } from './types'
 import { MoviePoster } from './MoviePoster'
 import { isExternalTitleQuery } from './search'
+import { SearchProgress } from './SearchProgress'
 
 type Format = 'all' | 'films' | 'series'
 const formats: { value: Format; label: string }[] = [{ value: 'all', label: 'Фильмы и сериалы' }, { value: 'films', label: 'Фильмы' }, { value: 'series', label: 'Сериалы' }]
 
-export function SearchDialog({ query, change, movies, busy, error, close, choose, submit, allResults }: { query: string; change: (s: string) => void; movies: Movie[]; busy: boolean; error: string; close: () => void; choose: (m: Movie) => void; submit: (e: FormEvent) => void; allResults: (format: Format) => void }) {
+export function SearchDialog({ query, change, movies, busy, phase, error, close, choose, submit, allResults }: { query: string; change: (s: string) => void; movies: Movie[]; busy: boolean; phase: SearchPhase; error: string; close: () => void; choose: (m: Movie) => void; submit: (e: FormEvent) => void; allResults: (format: Format) => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const panel = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
@@ -66,6 +67,7 @@ export function SearchDialog({ query, change, movies, busy, error, close, choose
             {expanded && <button type="button" className="docs-search-clear" aria-label={t("Очистить поиск")} onClick={() => { change(''); setFilterOpen(false); input.current?.focus() }}><X size={16}/></button>}
           </form>
           {expanded && <div className="docs-search-body">
+            {busy && <SearchProgress phase={phase} />}
             <div className="docs-search-sentence"><span className="docs-search-select">
               <button ref={filterButton} type="button" aria-label={t("Формат поиска")} aria-haspopup="menu" aria-expanded={filterOpen} aria-controls={filterOpen ? 'search-format-menu' : undefined} className="docs-search-chip" onClick={() => setFilterOpen(v => !v)} onKeyDown={e => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setFilterOpen(true) } }}>{format==='series'?<Tv size={15}/>:<Film size={15}/>}<span key={format}>{t(formats.find(f => f.value === format)?.label ?? '')}</span><ChevronDown size={12}/></button>
             </span></div>
@@ -76,8 +78,7 @@ export function SearchDialog({ query, change, movies, busy, error, close, choose
                 <span className="docs-search-result-text"><small>{m.type === 'series' ? t("Сериал") : t("Фильм")}{m.year ? ` · ${m.year}` : ''}</small><strong>{m.title}</strong>{m.original && m.original !== m.title && <span>{m.original}</span>}</span><ArrowRight size={16}/>
               </button>)}
             </div>
-            {!rows.length && !error && <p className="docs-search-message" role="status">{busy ? t("Ищем в каталоге…") : direct ? t("Нажмите Enter, чтобы открыть ссылку или ID.") : query.trim().length < 2 ? t("Введите хотя бы две буквы, ID или ссылку на фильм.") : t("Ничего не найдено по запросу «{0}».", query.trim())}</p>}
-            {busy && rows.length > 0 && <p className="docs-search-status" role="status">{t("Ищем в каталоге…")}</p>}
+            {!busy && !rows.length && !error && <p className="docs-search-message" role="status">{direct ? t("Нажмите Enter, чтобы открыть ссылку или ID.") : query.trim().length < 2 ? t("Введите хотя бы две буквы, ID или ссылку на фильм.") : t("Ничего не найдено по запросу «{0}».", query.trim())}</p>}
             <button className="docs-search-all" type="button" onClick={() => { if (direct) input.current?.form?.requestSubmit(); else allResults(format) }}>{direct ? t("Открыть ссылку или ID") : t("Все результаты")}<ArrowRight size={15}/></button>
           </div>}
         </div>

@@ -35,7 +35,12 @@ contextBridge.exposeInMainWorld('kadr', {
     return () => ipcRenderer.removeListener('kadr:show-updates', show);
   },
   catalog: (type, page) => invoke('catalog', type, page),
-  search: (query, page = 1) => invoke('search', query, page),
+  search: (query, page = 1, requestId) => invoke('search', query, page, requestId),
+  onSearchPhase: listener => {
+    const progress = (_, requestId, phase) => listener(requestId, phase);
+    ipcRenderer.on('kadr:search-phase', progress);
+    return () => ipcRenderer.removeListener('kadr:search-phase', progress);
+  },
   browse: (type, page = 1, options) => invoke('browse', type, page, options),
   recommendations: (refresh = false) => invoke('recommendations', refresh),
   rateMovie: (movie, action) => invoke('rate-movie', movie, action),

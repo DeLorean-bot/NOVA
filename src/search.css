@@ -34,7 +34,21 @@
 .docs-search-result-text strong { font-size: 13px; color: var(--fg); font-weight: 550; }
 .docs-search-result-text > span { font-size: 11px; color: var(--secondary); }
 .docs-search-message { margin: 0; padding: 20px 16px 24px; color: var(--secondary); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
-.docs-search-status { margin: 6px 16px; font-size: 11px; color: var(--muted); }
+.search-progress {
+  display: flex; align-items: center; min-height: 26px; padding: 4px 15px;
+  color: var(--secondary); font-size: 12px; font-weight: 550; line-height: 18px;
+  --search-progress-glow: #a5b9ff;
+}
+:root[data-theme=light] .search-progress { --search-progress-glow: #294fbd; }
+.search-progress-label {
+  color: transparent; background: linear-gradient(110deg,var(--secondary) 36%,var(--search-progress-glow) 50%,var(--secondary) 64%) 100% 0 / 250% 100%;
+  background-clip: text; animation: search-label-sheen 1.8s linear infinite;
+}
+@keyframes search-label-sheen { to { background-position: 0 0; } }
+:root[data-motion=off] .search-progress-label { animation: none; color: var(--secondary); background: none; }
+@media (prefers-reduced-motion: reduce), (forced-colors: active) {
+  .search-progress-label { animation: none; color: var(--secondary); background: none; }
+}
 .docs-search-all { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 38px; padding: 8px 14px; border: 0; border-radius: 10px; color: var(--secondary); background: transparent; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
 .docs-search-all:hover { background: #ffffff10; color: var(--fg); }
 .docs-search-footer { position: absolute; bottom: 10px; right: 10px; display: flex; gap: 14px; align-items: center; padding: 7px 12px; border-radius: 999px; background: #50505021; backdrop-filter: blur(16px) saturate(1.04); box-shadow: inset 0 0 0 1px #ffffff0b, 0 6px 14px #0a0a0a38; color: var(--muted); font-size: 11px; pointer-events: none; }
@@ -57,7 +71,7 @@
 @keyframes docs-search-enter { from { opacity: 0; transform: translateY(-4px) scale(.985); } to { opacity: 1; transform: none; } }
 @keyframes docs-search-content { from { opacity: 0; filter: blur(3px); } to { opacity: 1; filter: blur(0); } }
 :root[data-motion=off] .docs-search, :root[data-input=keyboard] .docs-search { animation: none; }
-:root[data-motion=off] .docs-search *, :root[data-input=keyboard] .docs-search * { animation: none; transition: none; }
+:root[data-motion=off] .docs-search *, :root[data-input=keyboard] .docs-search :not(.search-progress-label) { animation: none; transition: none; }
 @media (prefers-reduced-motion: reduce) { .docs-search, .docs-search * { animation: none !important; transition: none !important; } }
 @media (prefers-reduced-transparency: reduce), (forced-colors: active) { .docs-search-panel, .docs-search-menu, .docs-search-footer { background: var(--panel); backdrop-filter: none; border: 1px solid var(--edge); } }
 @media (max-width: 700px) { .docs-search { inset-block-start: 104px; } .docs-search-panel { max-height: calc(100dvh - 128px); } }

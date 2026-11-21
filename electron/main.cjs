@@ -96,7 +96,7 @@ async function matchPlotTitle({ id, imdb, tmdb, type, title, year }) {
     [movie.title, movie.original].some(name => titleKey(name) === titleKey(title)));
 }
 
-async function searchCatalog(query, page = 1) {
+async function searchCatalog(query, page = 1, requestId) {
   if (typeof query !== 'string' || query.length > 500) throw new Error('Введите название, ID или ссылку на фильм');
   const text = query.trim();
   const external = externalTitle(text);
@@ -116,7 +116,11 @@ async function searchCatalog(query, page = 1) {
     const body = await response.json();
     if (body.error) throw new Error('Поиск по сюжету временно недоступен.');
     return body;
-  }, matchPlotTitle).catch(error => {
+  }, matchPlotTitle, phase => {
+    if (Number.isSafeInteger(requestId) && win && !win.isDestroyed()) {
+      win.webContents.send('kadr:search-phase', requestId, phase);
+    }
+  }).catch(error => {
     if (titleResult.movies?.length) return [];
     throw titleResult.error || error;
   });

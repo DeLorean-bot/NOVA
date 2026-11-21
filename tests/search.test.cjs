@@ -60,6 +60,7 @@ test('plot lookup searches article text with a dedicated critical reception quer
 
 test('plot search retries the distinctive clues from a conversational query with spelling mistakes', async () => {
   const searches = [];
+  const phases = [];
   const query = 'ну кароч там пацан в падвале чота по телефону спризраками общаеться';
   const candidates = await findPlotMovies(query, async url => {
     const params = new URL(url).searchParams;
@@ -75,8 +76,9 @@ test('plot search retries the distinctive clues from a conversational query with
     const corrected = text.includes('подвал') && text.includes('телефон') && !text.includes('спризраками');
     const ids = corrected ? ['Q1', 'Q2'] : text.includes('спризраками') ? ['Q2'] : [];
     return { query: { pages: ids.map((id, index) => ({ index, pageprops: { wikibase_item: id } })) } };
-  }, async candidate => candidate.imdb);
+  }, async candidate => candidate.imdb, phase => phases.push(phase));
   assert.equal(candidates[0], 'tt7144666');
+  assert.deepEqual(phases, ['description', 'reviews', 'matching']);
   assert.ok(searches.includes('подвал телефон призрак фильм'));
   assert.ok(searches.includes('подвал телефон фильм'));
   assert.ok(searches.some(text => text.includes('спризраками')));

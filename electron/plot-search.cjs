@@ -33,9 +33,10 @@ function plotQueries(words, corrected, keywords, russian) {
     const search = [...terms, suffix].filter(Boolean).join(' ');
     searches.set(search, Math.max(weight, searches.get(search) ?? 0));
   };
-  const spellingChanged = words.some((word, index) => word !== corrected[index]);
-  include(words.slice(0, 12), spellingChanged ? 1.5 : 3);
-  if (spellingChanged) include(corrected.slice(0, 12), 3);
+  const original = words.slice(0, 12).join(' ');
+  const revision = corrected.slice(0, 12).join(' ');
+  searches.set(original, revision === original ? 3 : 1.5);
+  if (revision !== original) searches.set(revision, 3);
   include(clues, 2.5, movie);
   include(clues, 1, reception);
   if (clues.length >= 3) {
@@ -53,32 +54,38 @@ function claimValue(entity, property) {
   return entity?.claims?.[property]?.find(claim => claim.rank !== 'deprecated' && claim.mainsnak?.datavalue?.value !== undefined)?.mainsnak.datavalue.value;
 }
 
-async function findPlotMovies(query, json, findMovie) {
+async function findPlotMovies(query, json, findMovie, report = () => {}) {
   const words = plotWords(query).slice(0, 30);
   if (words.length < 2 || /^https?:\/\//i.test(query)) return [];
   const russian = /\p{Script=Cyrillic}/u.test(query);
   const wikipedia = russian ? 'ru.wikipedia.org' : 'en.wikipedia.org';
-  const spelling = russian && words.length >= 3 ? await correctPlotSpelling(words).catch(() => undefined) : undefined;
-  const pages = await Promise.allSettled(plotQueries(words, spelling?.corrected ?? words, spelling?.keywords ?? words, russian).map(async ([text, weight]) => {
+  const searchArticles = async text => {
     const body = await json(wikiUrl(wikipedia, {
       action: 'query', generator: 'search', gsrsearch: text,
       gsrwhat: 'text', gsrlimit: '12', gsrnamespace: '0', prop: 'pageprops', ppprop: 'wikibase_item|disambiguation',
     }));
-    const ids = (body.query?.pages ?? []).sort((a, b) => a.index - b.index)
+    return (body.query?.pages ?? []).sort((a, b) => a.index - b.index)
       .filter(page => page.pageprops && !Object.hasOwn(page.pageprops, 'disambiguation'))
       .map(page => page.pageprops.wikibase_item).filter(id => /^Q\d+$/.test(id));
-    return { ids, weight };
-  }));
+  };
+  report('description');
+  const initial = Promise.allSettled([searchArticles(words.slice(0, 12).join(' '))]);
+  const spelling = russian && words.length >= 3 ? await correctPlotSpelling(words).catch(() => undefined) : undefined;
+  const [[, firstWeight], ...queries] = plotQueries(words, spelling?.corrected ?? words, spelling?.keywords ?? words, russian);
+  report('reviews');
+  const [firstPage, otherPages] = await Promise.all([initial, Promise.allSettled(queries.map(([text]) => searchArticles(text)))]);
+  const pages = [...firstPage, ...otherPages];
+  const weights = [firstWeight, ...queries.map(([, weight]) => weight)];
   if (pages.every(result => result.status === 'rejected')) throw pages[0].reason;
   const scores = new Map();
-  for (const result of pages) {
-    if (result.status !== 'fulfilled') continue;
-    const { ids, weight } = result.value;
-    ids.forEach((id, rank) => scores.set(id, (scores.get(id) ?? 0) + weight / (4 + rank)));
-  }
+  pages.forEach((result, index) => {
+    if (result.status !== 'fulfilled') return;
+    result.value.forEach((id, rank) => scores.set(id, (scores.get(id) ?? 0) + weights[index] / (4 + rank)));
+  });
   const ids = [...scores.keys()].sort((a, b) => scores.get(b) - scores.get(a)).slice(0, 48);
   if (!ids.length) return [];
 
+  report('matching');
   const { entities } = await json(wikiUrl('www.wikidata.org', { action: 'wbgetentities', ids: ids.join('|'), props: 'claims|labels', languages: 'ru|en' }));
   const candidates = ids.flatMap(entityId => {
     const entity = entities?.[entityId];

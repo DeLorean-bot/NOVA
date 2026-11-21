@@ -5,7 +5,7 @@ import { CountryFilter } from './CountryFilter'
 import { PosterHover } from './PosterHover'
 import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type CSSProperties } from 'react'
 import { Bell, ArrowDown, ArrowLeft, ArrowRight, Bookmark, Collection, Check, ChevronRight, Clapperboard, Clock3, ExternalLink, Film, Globe2, House, Info, Maximize2, Play, Plus, RotateCw, Search, Settings2, Settings, ShieldCheck, ShieldOff, Trash2, Tv, X, TrendingUp, CalendarDays } from './icons'
-import type { AppState, Movie, RemoteTab } from './types'
+import type { AppState, Movie, RemoteTab, SearchPhase } from './types'
 import { useCatalogNavigation, type Section } from './useCatalogNavigation'
 import { SelectionHighlight } from './SelectionHighlight'
 import { AppNavigation, SectionNavigation, PremiereNavigation, FormatTabs, PageFrame } from './AppNavigation'
@@ -20,6 +20,7 @@ import { recommendations } from './recommendations'
 import { useRecommendations } from './useRecommendations'
 import { allowedSuggestion, EMPTY_TASTE } from './taste'
 import { SearchDialog } from './SearchDialog'
+import { SearchProgress } from './SearchProgress'
 import { UpcomingPage } from './UpcomingPage'
 import { RecommendationShelf } from './RecommendationShelf'
 import { StartupIntro } from './StartupIntro'
@@ -108,6 +109,7 @@ export default function App() {
   const searchInFlight = useRef(0)
   const failedSearchPage = useRef(1)
   const [indexing, setIndexing] = useState(false)
+  const [searchPhase, setSearchPhase] = useState<SearchPhase>('catalog')
   const [indexError, setIndexError] = useState('')
   const [remoteResults, setRemoteResults] = useState<{ query: string; movies: Movie[]; nextPage: number | null }>({ query: '', movies: [], nextPage: null })
   const searchRevision = useRef(0)
@@ -174,6 +176,9 @@ export default function App() {
     }
     const stopUpdate = api.onUpdateStatus(status => { receivedStatus = true; acceptUpdate(status) })
     const stopShowUpdates = api.onShowUpdates(openUpdates)
+    const stopSearchPhase = api.onSearchPhase((id, phase) => {
+      if (id === searchRevision.current && id === searchInFlight.current) setSearchPhase(phase)
+    })
     void api.updateStatus().then(status => { if (active && !receivedStatus) acceptUpdate(status) }).catch(() => {})
     api.state().then(initial => { if (active && !receivedUpdate) setState(initial) })
       .catch(error => { if (active) notify(error.message) })
@@ -184,7 +189,7 @@ export default function App() {
       else { setSearchDraft(queryRef.current); setSearchOpen(true) }
     })
     const stopReleases = api.onShowReleases(() => { api.home(); setPanelHistory([]); setDetail(null); setSection('releases') })
-    return () => { active = false; stop(); stopUpdate(); stopShowUpdates(); stopFeedback(); stopFocus(); stopReleases() }
+    return () => { active = false; stop(); stopUpdate(); stopShowUpdates(); stopSearchPhase(); stopFeedback(); stopFocus(); stopReleases() }
   }, [notify, openUpdates])
 
   const buildSearchIndex = useCallback(async (page = 1) => {
@@ -192,9 +197,9 @@ export default function App() {
     const text = activeQuery.trim()
     const revision = ++searchRevision.current
     searchInFlight.current = revision
-    setIndexing(true); setIndexError('')
+    setIndexing(true); setIndexError(''); setSearchPhase('catalog')
     try {
-      const result = await api.search(text, page)
+      const result = await api.search(text, page, revision)
       if (revision !== searchRevision.current) return
       const previous = searchCache.current.get(text)
       const movies = [...new Map([...(page > 1 ? previous?.movies ?? [] : []), ...result.movies].map(movie => [movie.id, movie])).values()]
@@ -220,6 +225,7 @@ export default function App() {
   useEffect(() => {
     ++searchRevision.current
     setIndexError('')
+    setSearchPhase('catalog')
     const text = activeQuery.trim()
     const cached = searchCache.current.get(text)
     if (cached) { setRemoteResults(cached); setIndexing(false); return }
@@ -473,7 +479,7 @@ export default function App() {
         <MovieGrid showType={filter === 'all' && (Boolean(query.trim()) || !['films', 'series'].includes(section))} movies={visible} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails} />
         {!visible.length && !catalogLoading && !nextCatalogPage && !catalogError && <div className="empty-state">{section === 'favorites' ? <Bookmark size={32} /> : section === 'history' ? <Clock3 size={32} /> : <Search size={32} />}<h3>{query.trim() ? t("Ничего не найдено") : section === 'favorites' ? t("В коллекции пока пусто") : section === 'history' ? t("История пустая") : t("В этой подборке ничего нет")}</h3><p>{query.trim() ? t("Попробуйте другое название или откройте поиск Кинопоиска") : section === 'favorites' ? t("Нажмите на закладку у любого фильма.") : t("Выберите фильм в каталоге и откройте плеер.")}</p>{query.trim() && <button className="primary-button button-sm" onClick={searchKP}>{t("Искать на Кинопоиске")}<ArrowRight size={16} /></button>}</div>}
         {isCatalog && catalogError && <div className="catalog-error" role="alert">{catalogError}<button onClick={loadMore}>{t("Повторить")}</button></div>}
-        {catalogLoading && <div className="catalog-autoload" role="status"><RotateCw className="spin" size={16}/>{searchingCatalog ? t("Ищем в каталоге…") : t("Загружаем каталог…")}</div>}
+        {catalogLoading && (searchingCatalog ? <SearchProgress phase={searchPhase} /> : <div className="catalog-autoload" role="status"><RotateCw className="spin" size={16}/>{t("Загружаем каталог…")}</div>)}
       </>}
         
       </CatalogScene></Suspense>}
@@ -491,7 +497,7 @@ export default function App() {
         action={availableUpdate.phase === 'downloading' ? { label: t('Подробнее'), run: async () => openUpdates() }
           : { label: t(availableUpdate.phase === 'ready' ? 'Установить' : 'Открыть релиз'), run: () => api!.applyUpdate() }}
         close={() => setDismissedUpdate(updateKey)}/>}
-    {searchOpen && <SearchDialog query={searchDraft} change={setSearchDraft} movies={searchSuggestions} busy={indexing} error={indexError} close={closeSearch} choose={chooseSearch} submit={search} allResults={format=>beginSearch(searchDraft,format)} />}
+    {searchOpen && <SearchDialog query={searchDraft} change={setSearchDraft} movies={searchSuggestions} busy={indexing} phase={searchPhase} error={indexError} close={closeSearch} choose={chooseSearch} submit={search} allResults={format=>beginSearch(searchDraft,format)} />}
     {notice && <ContentNotice movie={notice} close={() => setNotice(null)} start={() => { const movie = notice; setNotice(null); void watch(movie) }} />}
   </GlassScene>
 }
