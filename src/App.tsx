@@ -1,6 +1,6 @@
 import { getLanguage, setLanguage, t, useLanguage, type LanguageMode } from './i18n'
 import { MoviePoster } from './MoviePoster'
-import { excludesCountry, matchesRegion, regionOptions } from './catalog-regions'
+import { excludesCountry, matchesRegion } from './catalog-regions'
 import { CountryFilter } from './CountryFilter'
 import { PosterHover } from './PosterHover'
 import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type CSSProperties } from 'react'
@@ -456,8 +456,9 @@ export default function App() {
             options={[{ value: 'all', label: newReleases ? t('С {0} года', catalogYear) : t('Все годы') }, ...releaseYears.filter(value => !newReleases || value !== String(catalogYear)).map(value => ({ value, label: t('С {0} года', value) }))]}
             onChange={value => { setYear(value); setGenre('Все жанры') }} typeahead
           />}
-          <Select label={t("Регион производства")} className="region-select" value={region} options={regionOptions} onChange={value => { setRegion(value); setGenre('Все жанры') }}/>
-          <CountryFilter excluded={excludedCountries} change={countries => { setExcludedCountries(countries); setGenre('Все жанры') }}/>
+          <CountryFilter region={region} excluded={excludedCountries}
+            changeRegion={value => { setRegion(value); setGenre('Все жанры') }}
+            changeExcluded={countries => { setExcludedCountries(countries); setGenre('Все жанры') }}/>
           <Select label={t("Жанр")} className="genre-select" value={genre} onChange={setGenre}
             options={[{ value: 'Все жанры', label: 'Все жанры' }, ...genres.map(g => ({ value: g, label: g }))]}/>
           <span className="count-label">{unfilteredCount > 0 ? (query.trim() ? t("Найдено: {0}", visible.length) : t("Показано: {0}", visible.length)) : ' '}</span>

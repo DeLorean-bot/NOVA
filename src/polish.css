@@ -13,13 +13,21 @@
 .control-menu > button[aria-selected=true] > .material-symbol { color: #9bacff; }
 .app .select-trigger { border: 0; border-radius: 999px; background: var(--nav-glass); box-shadow: var(--nav-shadow); backdrop-filter: blur(12px); }
 .app .select-trigger:hover,.app .select-trigger[aria-expanded=true] { background: var(--pill-hover); }
+.country-filter-count { color: var(--muted); font-variant-numeric: tabular-nums; }
 .country-filter:popover-open { display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
 .country-filter-search { display: flex; align-items: center; gap: 8px; padding: 8px; color: var(--secondary); }
 .country-filter-search input { min-width: 0; width: 100%; color: var(--fg); border: 0; border-radius: 5px; background: transparent; }
 .country-filter-list { overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
-.country-filter-list label { display: flex; align-items: center; min-height: 34px; gap: 10px; padding: 5px 10px; border-radius: 8px; cursor: pointer; }
-.country-filter-list label:hover { background: var(--hover); }
-.country-filter-list input { margin: 0; accent-color: var(--accent); }
+.country-filter-list fieldset { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
+.country-filter-list fieldset + fieldset { margin-top: 8px; }
+.country-filter-list legend { padding: 0 8px; margin-bottom: 3px; color: var(--muted); font-size: 12px; }
+.country-filter-regions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: 4px; }
+.country-filter-option { position: relative; display: grid; grid-template-columns: minmax(0,1fr) 16px; align-items: center; min-height: 32px; gap: 5px; padding: 5px 8px; border-radius: 8px; font-size: 13px; line-height: 17px; }
+.country-filter-option:hover { background: var(--hover); }
+.country-filter-option:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.country-filter-option input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.country-filter-mark { justify-self: end; visibility: hidden; color: var(--accent); pointer-events: none; }
+.country-filter-option input:checked + .country-filter-mark { visibility: visible; }
 .country-filter-list p { margin: 8px; color: var(--secondary); }
 .country-filter .country-filter-reset { min-height: 32px; }
 .select-trigger > .material-symbol { transition: rotate 180ms cubic-bezier(.25,1,.5,1); }
