@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { metadataEndpoint, metadataPage, normalizeMetadata, catalogParams } = require('../electron/library-source.cjs');
+const { metadataEndpoint, metadataPage, normalizeMetadata, catalogParams, filterCatalogPage, externalTitle } = require('../electron/library-source.cjs');
 
 test('metadata discovery reads only the known public source endpoint, without executing code', () => {
   assert.equal(metadataEndpoint("url: 'https://api.apbugall.org/?token=public_embed_token_1234&kp=' + id"), 'https://api.apbugall.org/?token=public_embed_token_1234');
@@ -31,4 +31,24 @@ test('catalog keeps a valid premiere date and rejects calendar overflow', () => 
   assert.equal(normalizeMetadata({id_kp:414, premiere:'1931-01-30', name:' Огни большого города '}).premiereDate, '1931-01-30');
   assert.equal(normalizeMetadata({id_kp:414, premiere:'2026-02-31'}).premiereDate, undefined);
   assert.equal(normalizeMetadata({id_kp:null, alternative_id_kp:414, name:'Огни большого города'}).id, 414);
+});
+
+test('minimum release year includes newer films and stops after the source passes it', () => {
+  assert.deepEqual(catalogParams('films', 1, { minYear: 2020 }), { list: 'movie', order: 'year', page: '1' });
+  const movies = [2026, 2022, 2020, 2019, null].map(year => ({ year, type: 'film' }));
+  assert.deepEqual(filterCatalogPage({ movies, nextPage: 2 }, 'films', { minYear: 2020 }), {
+    movies: movies.slice(0, 3), nextPage: 2,
+  });
+  assert.deepEqual(filterCatalogPage({ movies: movies.slice(3), nextPage: 3 }, 'films', { minYear: 2020 }), {
+    movies: [], nextPage: null,
+  });
+});
+
+test('external identifiers recognize IMDb titles and distinguish TMDb movies and series', () => {
+  assert.deepEqual(externalTitle('tt0816692'), { imdb: 'tt0816692' });
+  assert.deepEqual(externalTitle('https://www.imdb.com/title/tt0816692/?ref_=x'), { imdb: 'tt0816692' });
+  assert.deepEqual(externalTitle('https://www.themoviedb.org/movie/157336-interstellar'), { tmdb: '157336', type: 'film' });
+  assert.deepEqual(externalTitle('https://www.themoviedb.org/tv/1399-game-of-thrones'), { tmdb: '1399', type: 'series' });
+  assert.equal(externalTitle('https://imdb.com.example.org/title/tt0816692/'), null);
+  assert.equal(externalTitle('https://www.imdb.com/name/nm0634240/'), null);
 });

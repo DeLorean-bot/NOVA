@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 're
 import { ArrowRight, Check, ChevronDown, Film, Search, Tv, X } from './icons'
 import type { Movie } from './types'
 import { MoviePoster } from './MoviePoster'
+import { isExternalTitleQuery } from './search'
 
 type Format = 'all' | 'films' | 'series'
 const formats: { value: Format; label: string }[] = [{ value: 'all', label: 'Фильмы и сериалы' }, { value: 'films', label: 'Фильмы' }, { value: 'series', label: 'Сериалы' }]
@@ -21,7 +22,7 @@ export function SearchDialog({ query, change, movies, busy, error, close, choose
   const [filterOpen, setFilterOpen] = useState(false)
   const expanded = Boolean(query.trim())
   const rows = (expanded ? movies : []).filter(m => format === 'all' || m.type === (format === 'films' ? 'film' : 'series')).slice(0, 8)
-  const direct = /^https?:|^[1-9]\d{0,11}$/.test(query.trim())
+  const direct = /^https?:|^[1-9]\d{0,11}$/.test(query.trim()) && !isExternalTitleQuery(query)
   const active = Math.min(selected, Math.max(0, rows.length - 1))
 
   useEffect(() => { const node = dialog.current; node?.showModal(); input.current?.focus(); return () => node?.close() }, [])
@@ -58,7 +59,7 @@ export function SearchDialog({ query, change, movies, busy, error, close, choose
         <div ref={content} className="docs-search-content">
           <form className="docs-search-field" onSubmit={e => { e.preventDefault(); if (!expanded) return; if (rows[active] && !direct) choose(rows[active]); else if (direct) submit(e); else allResults(format) }}>
             <Search size={17}/>
-            <input ref={input} value={query} onChange={e => { change(e.target.value); setFilterOpen(false) }} role="combobox" aria-label={t("Поиск фильмов")} aria-expanded={expanded && rows.length > 0} aria-controls="search-suggestions" aria-autocomplete="list" aria-activedescendant={expanded && rows[active] ? `suggestion-${rows[active].id}` : undefined} placeholder={t("Поиск…")} autoComplete="off" spellCheck={false} onKeyDown={e => {
+            <input ref={input} value={query} maxLength={500} onChange={e => { change(e.target.value); setFilterOpen(false) }} role="combobox" aria-label={t("Поиск фильмов")} aria-expanded={expanded && rows.length > 0} aria-controls="search-suggestions" aria-autocomplete="list" aria-activedescendant={expanded && rows[active] ? `suggestion-${rows[active].id}` : undefined} placeholder={t("Название, сюжет, ссылка или ID")} autoComplete="off" spellCheck={false} onKeyDown={e => {
               if (e.nativeEvent.isComposing) return
               if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && rows.length) { e.preventDefault(); selectRow((active + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length) }
             }}/>

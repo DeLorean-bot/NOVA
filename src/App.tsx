@@ -1,6 +1,7 @@
 import { getLanguage, setLanguage, t, useLanguage, type LanguageMode } from './i18n'
 import { MoviePoster } from './MoviePoster'
-import { matchesRegion, regionOptions } from './catalog-regions'
+import { excludesCountry, matchesRegion, regionOptions } from './catalog-regions'
+import { CountryFilter } from './CountryFilter'
 import { PosterHover } from './PosterHover'
 import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type CSSProperties } from 'react'
 import { Bell, ArrowDown, ArrowLeft, ArrowRight, Bookmark, Collection, Check, ChevronRight, Clapperboard, Clock3, ExternalLink, Film, Globe2, House, Info, Maximize2, Play, Plus, RotateCw, Search, Settings2, Settings, ShieldCheck, ShieldOff, Trash2, Tv, X, TrendingUp, CalendarDays } from './icons'
@@ -14,7 +15,7 @@ import type { CatalogPosition } from './CatalogScene'
 import { useAppearance } from './useAppearance'
 import { version } from '../package.json'
 import { Select } from './Select'
-import { searchMovies } from './search'
+import { isExternalTitleQuery, mergeSearchResults } from './search'
 import { recommendations } from './recommendations'
 import { useRecommendations } from './useRecommendations'
 import { allowedSuggestion, EMPTY_TASTE } from './taste'
@@ -41,11 +42,8 @@ type BrowseState = { movies: Movie[]; nextPage: number | null; loading: boolean;
 type FeedType = 'films' | 'series'
 type BrowseOptions = NonNullable<Parameters<NonNullable<typeof api>['browse']>[2]>
 const catalogYear = new Date().getFullYear()
-const recentYearOptions = [catalogYear, catalogYear - 1].map(year => ({ value: String(year), label: String(year) }))
-const yearOptions = [{ value: 'all', label: 'Все годы' }, ...Array.from({ length: catalogYear - 1888 + 1 }, (_, i) => ({
-  value: String(catalogYear - i), label: String(catalogYear - i),
-}))]
-const browseKey = (type: FeedType, options: BrowseOptions) => `browse:${type}:${options.year ?? 'all'}:${options.order ?? 'date'}`
+const releaseYears = Array.from({ length: catalogYear - 1888 + 1 }, (_, i) => String(catalogYear - i))
+const browseKey = (type: FeedType, options: BrowseOptions) => `browse:${type}:${options.minYear ?? 'all'}:${options.order ?? 'date'}`
 const BROWSE_EMPTY: BrowseState = { movies: [], nextPage: 1, loading: false, error: '' }
 
 function manualMovie(id: number, type: 'film' | 'series' = 'film', title = t("Кинопоиск · {0}", id)): Movie {
@@ -70,10 +68,11 @@ export default function App() {
   const [languageMode, setLanguageMode] = useState<LanguageMode>(api?.initialLanguageMode ?? getLanguage())
   const [update, setUpdate] = useState<import('./types').UpdateStatus>({ phase: 'idle' })
   const { section, group, startSearch, navigate: setSection, navigateGroup, back, forward, query, filter, genre, sort, year, region, setFilter, setGenre, setSort, setYear, setRegion } = useCatalogNavigation()
+  const [excludedCountries, setExcludedCountries] = useState<string[]>([])
   const catalogPositions = useRef(new Map<string, CatalogPosition>())
   const tabsRoot = useRef<HTMLDivElement>(null)
   const [navigationInstant, setNavigationInstant] = useState(false)
-  const catalogViewKey = JSON.stringify([section, query, filter, genre, sort, year, region])
+  const catalogViewKey = JSON.stringify([section, query, filter, genre, sort, year, region, [...excludedCountries].sort()])
   const [movies, setMovies] = useState<Record<'films' | 'series', Movie[]>>({ films: [], series: [] })
   const [browse, setBrowse] = useState<Record<string, BrowseState>>({})
   const [pages, setPages] = useState({ films: 0, series: 0 })
@@ -206,7 +205,7 @@ export default function App() {
     const text = activeQuery.trim()
     const cached = searchCache.current.get(text)
     if (cached) { setRemoteResults(cached); setIndexing(false); return }
-    if (text.length < 2 || (/^https?:\/\//i.test(text) && !getContent(text))) { setIndexing(false); return }
+    if (text.length < 2 || (/^https?:\/\//i.test(text) && !getContent(text) && !isExternalTitleQuery(text))) { setIndexing(false); return }
     setIndexing(true)
     const timer = setTimeout(() => buildSearchIndex(), 350)
     return () => { clearTimeout(timer); ++searchRevision.current }
@@ -280,30 +279,39 @@ export default function App() {
     const info = getContent(value)
     if (info) { beginSearch(value); showDetails(findMovie(info.id, info.type)); return }
     if (/^[1-9]\d{0,11}$/.test(value)) { beginSearch(value); showDetails(findMovie(Number(value), 'film')); return }
+    if (isExternalTitleQuery(value)) { beginSearch(value); return }
     if (/^https?:\/\//i.test(value)) { setSearchOpen(false); perform(() => api!.open(value)); return }
     beginSearch(value)
   }
   const searchKP = () => perform(() => api!.open(`https://www.kinopoisk.ru/index.php?kp_query=${encodeURIComponent(query.trim())}`))
   const overview = useMemo(() => mixFeeds(movies.films, movies.series), [movies])
   const newReleases = section === 'new'
-  const yearSelection = newReleases && year === 'all' ? String(catalogYear) : year
+  const minimumYear = year === 'all' ? undefined : Number(year)
+  const chronologicalFeed = minimumYear !== undefined && (section === 'films' || section === 'series')
   const browseOptions: BrowseOptions = {
-    year: yearSelection === 'all' ? undefined : Number(yearSelection),
-    order: sort === 'year' && yearSelection === 'all' ? 'year' : 'date',
+    minYear: minimumYear ?? (newReleases ? catalogYear : undefined),
+    order: newReleases || chronologicalFeed || sort === 'year' ? 'year' : 'date',
   }
   const selectedFeeds: FeedType[] = newReleases
     ? filter === 'all' ? ['films', 'series'] : [filter]
     : [section === 'series' ? 'series' : 'films']
   const browseFeeds = selectedFeeds.map(type => ({ type, ...(browse[browseKey(type, browseOptions)] ?? BROWSE_EMPTY) }))
   const feedMovies = browseFeeds.length === 2 ? mixFeeds(browseFeeds[0].movies, browseFeeds[1].movies) : browseFeeds[0].movies
+  const queryResults = useMemo(() => query.trim()
+    ? mergeSearchResults(all, remoteResults.query === query.trim() ? remoteResults.movies : [], query) : [],
+  [all, query, remoteResults])
   let visible = query.trim()
-    ? [...new Map([...searchMovies(all, query), ...(remoteResults.query === query.trim() ? remoteResults.movies : [])].map(m => [m.id, m])).values()]
+    ? queryResults
     : section === 'search' ? [] : section === 'favorites' ? state.favorites : section === 'history' ? state.history : section === 'home' || section === 'trending' ? overview : feedMovies
   const unfilteredCount = visible.length
-  if (region !== 'all') {
+  if (region !== 'all' || excludedCountries.length) {
     const countries = new Map(all.filter(movie => movie.country).map(movie => [movie.id, movie.country]))
-    visible = visible.filter(movie => matchesRegion(movie.country || countries.get(movie.id), region))
+    visible = visible.filter(movie => {
+      const country = movie.country || countries.get(movie.id)
+      return matchesRegion(country, region) && !excludesCountry(country, excludedCountries)
+    })
   }
+  if (minimumYear !== undefined) visible = visible.filter(movie => (movie.year ?? 0) >= minimumYear)
   if (filter !== 'all') visible = visible.filter(m => m.type === (filter === 'films' ? 'film' : 'series'))
   const genres = [...new Set(visible.flatMap(m => m.genres))].sort((a, b) => t(a.toLowerCase()).localeCompare(t(b.toLowerCase()), getLanguage()))
   if (genre !== 'Все жанры') visible = visible.filter(m => m.genres.includes(genre))
@@ -311,10 +319,10 @@ export default function App() {
   if (sort === 'year' && !['films', 'series'].includes(section)) visible = [...visible].sort((a, b) => (b.year || 0) - (a.year || 0))
   const recommended = useMemo(() => {
     const pool = [...picks.movies, ...movies.films.slice(0, 30), ...movies.series.slice(0, 30)]
-    return recommendations(pool.filter(movie => movie.poster), state.history, state.favorites, picks.seed, picks.seen, state.taste)
-  }, [picks.movies, movies.films, movies.series, state.history, state.favorites, picks.seed, picks.seen, state.taste])
+    return recommendations(pool.filter(movie => movie.poster && !excludesCountry(movie.country, excludedCountries)), state.history, state.favorites, picks.seed, picks.seen, state.taste)
+  }, [picks.movies, movies.films, movies.series, state.history, state.favorites, picks.seed, picks.seen, state.taste, excludedCountries])
   // A backdrop must be a backdrop, never a portrait poster enlarged to 1100px.
-  const heroMovies = [...new Map([...recommended, ...movies.films.slice(0, 30)].filter(m => m.cover && !badCovers.has(m.id) && allowedSuggestion(m,state.taste)).map(m => [m.id, m])).values()].slice(0, 8)
+  const heroMovies = [...new Map([...recommended, ...movies.films.slice(0, 30)].filter(m => m.cover && !badCovers.has(m.id) && allowedSuggestion(m,state.taste) && !excludesCountry(m.country, excludedCountries)).map(m => [m.id, m])).values()].slice(0, 8)
   const hero = heroMovies[heroIndex % Math.max(1, heroMovies.length)]
   const heroIds = new Set(heroMovies.map(movie => movie.id))
   const shelfMovies = recommended.filter(movie => !heroIds.has(movie.id)).slice(0, 12)
@@ -363,7 +371,10 @@ export default function App() {
   const favoriteIds = useMemo(() => new Set(state.favorites.map(movie => movie.id)), [state.favorites])
   const toggleFavorite = useCallback((movie: Movie) => perform(() => api!.favorite(movie)), [perform])
   const closeSearch = () => { setSearchOpen(false); requestAnimationFrame(() => { document.querySelector<HTMLButtonElement>('.global-search-launch')?.focus({preventScroll:true}) }) }
-  const searchSuggestions = [...new Map([...searchMovies(all, searchDraft), ...(remoteResults.query === searchDraft.trim() ? remoteResults.movies : [])].map(movie => [movie.id, movie])).values()]
+  const searchSuggestions = useMemo(() => searchOpen && searchDraft.trim()
+    ? mergeSearchResults(all, remoteResults.query === searchDraft.trim() ? remoteResults.movies : [], searchDraft)
+      .filter(movie => !excludesCountry(movie.country, excludedCountries))
+    : [], [all, searchDraft, searchOpen, remoteResults, excludedCountries])
   const chooseSearch = (movie: Movie) => { if (searchDraft.trim()) beginSearch(searchDraft); else if (state.active) void api?.home(); showDetails(movie) }
 
 
@@ -413,24 +424,25 @@ export default function App() {
 
         {(unfilteredCount > 0 || (isCatalog && section !== 'home')) && <div className="filterbar">
           {(query.trim() || newReleases || section === 'favorites' || section === 'history') && <FormatTabs value={filter} instant={navigationInstant} change={(value, instant) => { setNavigationInstant(instant); setFilter(value); setGenre('Все жанры') }}/>}
-          {(newReleases || section === 'films' || section === 'series') && <Select
-            label={t("Год выпуска")} className="genre-select year-select" value={yearSelection}
-            options={newReleases ? recentYearOptions : yearOptions}
+          {(newReleases || section === 'films' || section === 'series' || searchingCatalog) && <Select
+            label={t("Год выпуска")} className="genre-select year-select" value={year}
+            options={[{ value: 'all', label: newReleases ? t('С {0} года', catalogYear) : t('Все годы') }, ...releaseYears.filter(value => !newReleases || value !== String(catalogYear)).map(value => ({ value, label: t('С {0} года', value) }))]}
             onChange={value => { setYear(value); setGenre('Все жанры') }} typeahead
           />}
           <Select label={t("Регион производства")} className="region-select" value={region} options={regionOptions} onChange={value => { setRegion(value); setGenre('Все жанры') }}/>
+          <CountryFilter excluded={excludedCountries} change={countries => { setExcludedCountries(countries); setGenre('Все жанры') }}/>
           <Select label={t("Жанр")} className="genre-select" value={genre} onChange={setGenre}
             options={[{ value: 'Все жанры', label: 'Все жанры' }, ...genres.map(g => ({ value: g, label: g }))]}/>
           <span className="count-label">{unfilteredCount > 0 ? (query.trim() ? t("Найдено: {0}", visible.length) : t("Показано: {0}", visible.length)) : ' '}</span>
-          {(filter !== 'all' || genre !== 'Все жанры' || sort !== 'popular' || year !== 'all' || region !== 'all') &&
-            <button className="quiet-button" onClick={() => { setFilter('all'); setGenre('Все жанры'); setSort('popular'); setYear('all'); setRegion('all') }}>{t("Сбросить фильтры")}</button>}
+          {(filter !== 'all' || genre !== 'Все жанры' || sort !== 'popular' || year !== 'all' || region !== 'all' || excludedCountries.length > 0) &&
+            <button className="quiet-button" onClick={() => { setFilter('all'); setGenre('Все жанры'); setSort('popular'); setYear('all'); setRegion('all'); setExcludedCountries([]) }}>{t("Сбросить фильтры")}</button>}
           <div className="catalog-filter-actions">
             {section === 'history' && !query.trim() && state.history.length > 0
               ? <button className="quiet-button" onClick={() => perform(() => api!.clearHistory())}><Trash2 size={15}/>{t("Очистить")}</button>
               : !newReleases && (unfilteredCount > 0 || section === 'films' || section === 'series') && <div className="catalog-tools">
                 <Settings2 size={15}/>
-                <Select label={t("Сортировка")} value={sort} onChange={setSort} options={[
-                  { value: 'popular', label: query.trim() ? t("По соответствию") : section === 'favorites' ? t("По добавлению") : section === 'films' || section === 'series' ? t("По обновлению") : t("По популярности") },
+                <Select label={t("Сортировка")} value={chronologicalFeed && sort === 'popular' ? 'year' : sort} onChange={setSort} options={[
+                  ...(!chronologicalFeed ? [{ value: 'popular', label: query.trim() ? t("По соответствию") : section === 'favorites' ? t("По добавлению") : section === 'films' || section === 'series' ? t("По обновлению") : t("По популярности") }] : []),
                   { value: 'rating', label: t("По рейтингу") },
                   { value: 'year', label: t("Сначала новые") },
                 ]}/>

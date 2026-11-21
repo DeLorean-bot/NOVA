@@ -13,7 +13,8 @@ const fs = require('node:fs/promises');
 const { pathToFileURL } = require('node:url');
 const { SOURCE, API, webUrl, contentInfo, movieId, normalizeMovie, parseBlacklist, normalizePlayers } = require('./core.cjs');
 const adblock = require('./adblock.cjs');
-const { metadataEndpoint, metadataPage, catalogParams } = require('./library-source.cjs');
+const { metadataEndpoint, metadataPage, catalogParams, filterCatalogPage, externalTitle } = require('./library-source.cjs');
+const { plotWords, findPlotMovies } = require('./plot-search.cjs');
 const { chromiumFetch } = require('./network.cjs');
 const { videoFacts, playedDelta, watchProgress } = require('./playback.cjs');
 const { createUpcoming } = require('./upcoming.cjs');
@@ -72,14 +73,63 @@ async function sourceSearch(query, page = 1) {
   return metadataRequest(id ? { kp: String(id) } : { name: text, list: '1', page: String(page) }, page);
 }
 
+async function externalTitleSearch({ imdb, tmdb, type }) {
+  const result = await metadataRequest(imdb ? { imdb } : { tmdb }, 1);
+  return { nextPage: null, movies: result.movies.filter(movie =>
+    (imdb ? movie.imdbId === imdb : movie.tmdbId === tmdb) && (!type || movie.type === type)) };
+}
+
+const titleKey = value => (value || '').toLowerCase().replaceAll('ё', 'е').replace(/[^\p{L}\p{N}]/gu, '');
+
+async function matchPlotTitle({ id, imdb, tmdb, type, title, year }) {
+  if (id) {
+    const movie = knownMovies.get(id) || (await sourceSearch(String(id)).catch(() => null))?.movies.find(movie => movie.id === id);
+    if (movie) return movie;
+  }
+  for (const external of [imdb && { imdb }, tmdb && { tmdb, type }].filter(Boolean)) {
+    const [movie] = (await externalTitleSearch(external).catch(() => ({ movies: [] }))).movies;
+    if (movie) return movie;
+  }
+  if (!title || !year) return undefined;
+  const { movies } = await sourceSearch(title.slice(0, 250));
+  return movies.find(movie => movie.year === year && (!type || movie.type === type) &&
+    [movie.title, movie.original].some(name => titleKey(name) === titleKey(title)));
+}
+
+async function searchCatalog(query, page = 1) {
+  if (typeof query !== 'string' || query.length > 500) throw new Error('Введите название, ID или ссылку на фильм');
+  const text = query.trim();
+  const external = externalTitle(text);
+  if (external) return externalTitleSearch(external);
+  const words = plotWords(text);
+  if (page !== 1 || words.length < 2 || /^https?:\/\//i.test(text)) return sourceSearch(text, page);
+  const titleResult = text.length <= 250 ? await sourceSearch(text).catch(error => ({ error })) : { movies: [], nextPage: null };
+  const exactTitle = titleResult.movies?.some(movie => [movie.title, movie.original].some(title => titleKey(title) === titleKey(text)));
+  if (exactTitle || (titleResult.movies?.length && words.length < 4)) return titleResult;
+  const movies = await findPlotMovies(text, async url => {
+    const response = await chromiumFetch(url, {
+      headers: { 'User-Agent': 'NOVA (https://github.com/DeLorean-bot/NOVA)', Accept: 'application/json' },
+      signal: AbortSignal.timeout(6500),
+    });
+    if (!response.ok) throw new Error('Поиск по сюжету временно недоступен.');
+    const body = await response.json();
+    if (body.error) throw new Error('Поиск по сюжету временно недоступен.');
+    return body;
+  }, matchPlotTitle).catch(error => {
+    if (titleResult.movies?.length) return [];
+    throw titleResult.error || error;
+  });
+  if (!movies.length && titleResult.error) throw titleResult.error;
+  return {
+    movies: [...new Map([...(titleResult.movies ?? []), ...movies].map(movie => [movie.id, movie])).values()],
+    nextPage: titleResult.nextPage ?? null,
+  };
+}
+
 async function sourceBrowse(type, page = 1, options) {
   const params = catalogParams(type, page, options);
   const result = await metadataRequest(params, page);
-  const matches = type === 'series' ? 'series' : 'film';
-  return {
-    ...result,
-    movies: result.movies.filter(movie => movie.type === matches && (!params.year || movie.year === Number(params.year))),
-  };
+  return filterCatalogPage(result, type, options);
 }
 
 async function metadataRequest(params, page) {
@@ -546,7 +596,7 @@ function registerHandlers() {
     return write;
   });
   handle('catalog', catalog);
-  handle('search', sourceSearch);
+  handle('search', searchCatalog);
   handle('browse', sourceBrowse);
   handle('recommendations', async refresh => ({ ...await recommendationCandidates(refresh), seen: state.taste.seen }));
   const feedbackUndo=new Map();let feedbackSequence=0;

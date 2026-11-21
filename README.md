@@ -40,8 +40,8 @@ Downloads count the Windows installer and portable ZIP. The chart records one sn
 
 | Download | How to launch |
 | --- | --- |
-| [Windows installer](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.4/NOVA-Setup-0.8.4.exe) | Run setup and open NOVA from Start. |
-| [Portable Windows ZIP](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.4/NOVA-0.8.4-win-x64.zip) | Extract the entire archive, then open `NOVA.exe`. |
+| [Windows installer](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.5/NOVA-Setup-0.8.5.exe) | Run setup and open NOVA from Start. |
+| [Portable Windows ZIP](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.5/NOVA-0.8.5-win-x64.zip) | Extract the entire archive, then open `NOVA.exe`. |
 
 Installed copies of NOVA download changed blocks in the background when possible. Open **Settings → Updates** to see progress and restart to install. Portable copies link to the release download.
 
