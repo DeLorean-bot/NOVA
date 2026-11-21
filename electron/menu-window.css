@@ -2,14 +2,6 @@
 
 
 #panel.notices:focus { outline: none; }
-#panel.notices { background: #0a0a0c8a; }
-.light #panel.notices { background: #ffffffa8; }
-.notices .texture img { filter: blur(22px) saturate(1.12); opacity: .76; }
-.light .notices .texture img { opacity: .62; }
-@media(prefers-reduced-transparency:reduce),(forced-colors:active) {
-  #panel.notices { background: #17191d; }
-  .light #panel.notices { background: white; }
-}
 .notices #header { height: 32px; margin: 6px 6px 0; padding: 2px 4px 2px 10px; }
 .notices #header button { min-height: 24px; padding: 1px 8px; border-radius: 999px; }
 .notices #items { padding: 0 6px 6px; overscroll-behavior: contain; }

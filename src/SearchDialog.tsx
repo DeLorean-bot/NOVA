@@ -59,7 +59,7 @@ export function SearchDialog({ query, change, movies, busy, error, close, choose
         <div ref={content} className="docs-search-content">
           <form className="docs-search-field" onSubmit={e => { e.preventDefault(); if (!expanded) return; if (rows[active] && !direct) choose(rows[active]); else if (direct) submit(e); else allResults(format) }}>
             <Search size={17}/>
-            <input ref={input} value={query} maxLength={500} onChange={e => { change(e.target.value); setFilterOpen(false) }} role="combobox" aria-label={t("Поиск фильмов")} aria-expanded={expanded && rows.length > 0} aria-controls="search-suggestions" aria-autocomplete="list" aria-activedescendant={expanded && rows[active] ? `suggestion-${rows[active].id}` : undefined} placeholder={t("Название, сюжет, ссылка или ID")} autoComplete="off" spellCheck={false} onKeyDown={e => {
+            <input ref={input} value={query} maxLength={500} onChange={e => { change(e.target.value); setFilterOpen(false) }} role="combobox" aria-label={t("Поиск фильмов")} aria-expanded={expanded && rows.length > 0} aria-controls="search-suggestions" aria-autocomplete="list" aria-activedescendant={expanded && rows[active] ? `suggestion-${rows[active].id}` : undefined} placeholder={t("Название, сюжет, актёр, ссылка или ID")} autoComplete="off" spellCheck={false} onKeyDown={e => {
               if (e.nativeEvent.isComposing) return
               if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && rows.length) { e.preventDefault(); selectRow((active + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length) }
             }}/>

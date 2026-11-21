@@ -28,6 +28,14 @@ test('story clues match descriptions and exact titles still rank first', () => {
   assert.equal(searchMovies(films, 'сны')[0].title, 'Сны');
 });
 
+test('a search can combine a plot detail with cast, director and year from an article or review', () => {
+  const films = [
+    { title: 'Начало', year: 2010, description: 'Кобб внедряет идеи в сны.', actors: 'Леонардо ДиКаприо', directors: 'Кристофер Нолан' },
+    { title: 'Остров проклятых', year: 2010, description: 'Маршал расследует побег.', actors: 'Леонардо ДиКаприо', directors: 'Мартин Скорсезе' },
+  ];
+  assert.equal(searchMovies(films, 'в отзыве пишут Нолан ДиКаприо сны 2010')[0].title, 'Начало');
+});
+
 test('story lookup accepts IMDb, TMDb and title with year when the Wikimedia entry lacks a Kinopoisk ID', async () => {
   const claim = value => [{ rank: 'normal', mainsnak: { datavalue: { value } } }];
   const json = async url => new URL(url).hostname === 'www.wikidata.org' ? { entities: {
@@ -38,6 +46,16 @@ test('story lookup accepts IMDb, TMDb and title with year when the Wikimedia ent
   const titles = await findPlotMovies('путешествие через космос', json, async candidate =>
     candidate.imdb || candidate.tmdb && `${candidate.type}:${candidate.tmdb}` || `${candidate.title}:${candidate.year}`);
   assert.deepEqual(titles, ['tt0816692', 'series:1399', 'Начало:2010']);
+});
+
+test('plot lookup searches article text with a dedicated critical reception query', async () => {
+  const searches = [];
+  await findPlotMovies('Jungian Rififi', async url => {
+    searches.push(new URL(url).searchParams.get('gsrsearch'));
+    return { query: { pages: [] } };
+  }, async () => null);
+  assert.ok(searches.includes('jungian rififi'));
+  assert.ok(searches.some(query => query.includes('(review OR reception OR critics)')));
 });
 
 test('excluding countries hides co-productions with any chosen country and keeps others', () => {

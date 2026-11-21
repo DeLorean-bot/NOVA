@@ -48,7 +48,7 @@ let state = { profile: readProfile(null, nativeImage.createFromDataURL), favorit
 let language = 'ru';
 let languageMode = 'system';
 let languageWrite = Promise.resolve();
-let appUpdates, updateTimer;
+let appUpdates, updateTimer, desktopUpdateNotice;
 let playerSessionReady;
 const uiText = (message, ...values) => {
   const template = language === 'en' && Object.hasOwn(englishMessages, message) ? englishMessages[message] : message;
@@ -929,6 +929,7 @@ async function createWindow() {
       lookup: () => checkForUpdate(chromiumFetch, app.getVersion()),
       openExternal: url => shell.openExternal(url),
       publish: status => { if (win && !win.isDestroyed()) win.webContents.send('kadr:update-status', status); },
+      announce: announceUpdate,
     });
     void appUpdates.check();
     updateTimer = setInterval(() => { void appUpdates.check(); }, 6 * 60 * 60 * 1000);
@@ -938,6 +939,27 @@ async function createWindow() {
   playbackTimer = setInterval(pollPlayback, 4000); playbackTimer.unref();
   releasesTimer = setInterval(() => checkReleases().catch(() => {}), 30 * 60 * 1000); releasesTimer.unref();
   checkReleases().catch(() => {});
+}
+
+function announceUpdate(status) {
+  desktopUpdateNotice?.close();
+  desktopUpdateNotice = undefined;
+  if (!win || win.isDestroyed() || (win.isFocused() && !immersive()) || !Notification.isSupported()) return;
+  const ready = status.phase === 'ready';
+  desktopUpdateNotice = new Notification({
+    title: uiText(ready ? 'NOVA {0} готова к установке' : 'Доступна версия {0}', status.version),
+    body: uiText(ready ? 'Откройте NOVA, чтобы обновиться и перезапустить приложение.'
+      : status.phase === 'downloading' ? 'Скачиваем обновление в фоне.' : 'Откройте NOVA, чтобы перейти к релизу.'),
+    icon: iconFile(),
+    silent: true,
+  });
+  desktopUpdateNotice.on('click', () => {
+    if (!win || win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.webContents.send('kadr:show-updates');
+  });
+  desktopUpdateNotice.show();
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();

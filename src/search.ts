@@ -10,7 +10,7 @@ function distance(a: string, b: string): number {
   }
   return previous[b.length]
 }
-const plotFiller = new Set(normalize('что где как когда который которая которые чтобы про это там все фильм фильме кино сериал сюжете история помню очень найти ищу меня потом один одна the and about movie film series where which that then this from with remember').split(' '))
+const plotFiller = new Set(normalize('что где как когда который которая которые чтобы про это там все фильм фильме кино сериал сюжете история помню очень найти ищу меня потом один одна отзыв отзыве отзывах рецензия рецензии пишут писали критики the and about movie film series where which that then this from with remember review reviews critics').split(' '))
 
 function plotTerms(text: string) {
   return [...new Set(text.split(' ').filter(word => word.length >= 3 && !plotFiller.has(word)).map(word => {
@@ -19,7 +19,10 @@ function plotTerms(text: string) {
   }))]
 }
 
-type SearchMovie = { title: string; original?: string; year?: number | null; description?: string }
+type SearchMovie = {
+  title: string; original?: string; year?: number | null; description?: string
+  actors?: string; directors?: string; country?: string; genres?: string[]
+}
 
 export function isExternalTitleQuery(query: string) {
   const text = query.trim()
@@ -47,11 +50,12 @@ export function searchMovies<T extends SearchMovie>(items: T[], query: string): 
       score += closest + 1
     }
     if (titleMatches) return [{ movie, score }]
-    if (story.length < 2 || !movie.description) return []
-    const description = normalize(movie.description)
+    if (story.length < 2) return []
+    const description = normalize(movie.description || '')
     if (description.includes(text)) return [{ movie, score: 18 }]
-    const descriptionWords = new Set(plotTerms(description))
-    const matches = story.filter(term => descriptionWords.has(term)).length
+    const facts = normalize([title, description, movie.actors, movie.directors, movie.country, ...(movie.genres ?? [])].filter(Boolean).join(' '))
+    const factTerms = new Set(plotTerms(facts))
+    const matches = story.filter(term => factTerms.has(term)).length
     return matches >= Math.max(2, Math.ceil(story.length * .5))
       ? [{ movie, score: 30 - 8 * matches / story.length }] : []
   }).sort((a, b) => a.score - b.score).map(result => result.movie)

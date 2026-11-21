@@ -87,8 +87,10 @@
 .notice-unread { position: absolute; right: 14px; bottom: 10px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); pointer-events: none; }
 @media (hover: none) { .header-notices .notice-remove { opacity: 1; } }
 .feedback-toast.nl-feedback { inset: auto 24px 24px auto; transform: none; width: 408px; max-width: calc(100vw - 48px); height: 72px; padding: 12px; gap: 0; border: 1px solid var(--edge); box-shadow: inset 0 1px 0 var(--material-sheen),0 8px 28px #0004; border-radius: 16px; }
-.feedback-toast.nl-feedback, .header-notices .header-menu-surface, .header-notices:hover .header-menu-surface { background: color-mix(in srgb,var(--panel) 62%,transparent); backdrop-filter: blur(22px) saturate(1.12); }
+.feedback-toast.nl-feedback { background: var(--menu-glass); backdrop-filter: var(--menu-blur); }
+.feedback-toast.nl-feedback:hover { background: var(--menu-glass-hover); }
 .notice-refraction.lg-surface { position: absolute; inset: 0; z-index: 0; pointer-events: none; border-radius: inherit; background: transparent; }
+.app[data-optics='fallback'] .notice-refraction.lg-surface { background: transparent; }
 .nl-feedback > :not(.notice-refraction) { position: relative; z-index: 1; }
 .feedback-toast.nl-feedback:popover-open { display: grid; grid-template-columns: 34px minmax(0,1fr) 76px 32px; column-gap: 8px; animation: feedback-enter 180ms var(--ease-menu); }
 .nl-feedback .feedback-toast-art { display: grid; place-items: center; width: 34px; height: 44px; }
@@ -137,7 +139,7 @@
 .poster-liquid-action { position: relative; isolation: isolate; }
 .poster-liquid-action .poster-liquid-lens.lg-surface { position: absolute; inset: 0; pointer-events: none; border-radius: 16px; background: transparent; visibility: visible; z-index: -1; }
 @media(prefers-reduced-transparency:reduce),(forced-colors:active) {
-  .feedback-toast.nl-feedback, .header-notices .header-menu-surface, .header-notices:hover .header-menu-surface { background: var(--panel); backdrop-filter: none; }
+  .feedback-toast.nl-feedback, .feedback-toast.nl-feedback:hover { background: var(--panel); backdrop-filter: none; }
   .poster-liquid-action .poster-liquid-lens, .notice-refraction.lg-surface { display: none; }
 }
 

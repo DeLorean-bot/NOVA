@@ -1,9 +1,14 @@
-function createAppUpdates({ updater, lookup, openExternal, publish }) {
+function createAppUpdates({ updater, lookup, openExternal, publish, announce = () => {} }) {
   let state = { phase: 'idle' };
   let request, release;
+  const announced = new Map();
   const report = (phase, data = {}) => {
     state = { phase, ...data };
     publish(state);
+    if (['downloading', 'ready', 'external'].includes(phase) && announced.get(phase) !== state.version) {
+      announced.set(phase, state.version);
+      try { announce(state); } catch (error) { console.error('NOVA update notification:', error.message); }
+    }
   };
   const fail = error => {
     console.error('NOVA update:', error.message);

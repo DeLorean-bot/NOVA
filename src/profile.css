@@ -1,5 +1,5 @@
 /* Measured on neverlose.cc: 220ms quart menus; 500ms circle + blur theme reveal. */
-:root { --menu-glass: rgba(10,10,12,.72); --menu-glass-hover: rgba(14,14,17,.78); --ease-menu: cubic-bezier(.25,1,.5,1); }
+:root { --menu-glass: rgba(10,10,12,.72); --menu-glass-hover: rgba(14,14,17,.78); --menu-blur: blur(12px) saturate(1.28); --ease-menu: cubic-bezier(.25,1,.5,1); }
 :root[data-theme='light'] { --canvas: #fff; --menu-glass: rgba(255,255,255,.78); --menu-glass-hover: rgba(255,255,255,.88); }
 html,body,.app.kadr-topnav,.kadr-topnav .app-backdrop { background: var(--canvas); }
 html:not([data-theme]),html:not([data-theme]) body { background: transparent; }
@@ -20,7 +20,7 @@ html:not([data-theme]),html:not([data-theme]) body { background: transparent; }
 /* Keep the popover in the top layer until its exit has actually completed. */
 .header-menu { padding: 0; overflow: visible; border: 0; background: transparent; backdrop-filter: none; box-shadow: none; transition: display 220ms allow-discrete,overlay 220ms allow-discrete; }
 .header-menu:popover-open { animation: none; }
-.header-menu-surface { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: var(--menu-glass); backdrop-filter: blur(12px) saturate(1.28); box-shadow: var(--nav-shadow); opacity: 0; transition: opacity 150ms ease-out,background-color 150ms ease-out; }
+.header-menu-surface { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: var(--menu-glass); backdrop-filter: var(--menu-blur); box-shadow: var(--nav-shadow); opacity: 0; transition: opacity 150ms ease-out,background-color 150ms ease-out; }
 .header-menu:hover .header-menu-surface { background: var(--menu-glass-hover); }
 .header-menu-visual { position: relative; z-index: 1; opacity: 0; filter: blur(6px); transform: translateY(-6px); transition: opacity 220ms var(--ease-menu),filter 220ms var(--ease-menu),transform 220ms var(--ease-menu); }
 .header-menu-content { position: relative; padding: 8px; max-height: calc(100dvh - 128px); overflow: auto; border-radius: inherit; }

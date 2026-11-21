@@ -1,6 +1,6 @@
 const { movieId } = require('./core.cjs');
 
-const filler = new Set('что где когда который которая которые чтобы про это там как все фильм фильме кино сериал сюжете история помню очень найти ищу меня потом один одна the and about movie film series where which that then this from with remember'.split(' '));
+const filler = new Set('что где когда который которая которые чтобы про это там как все фильм фильме кино сериал сюжете история помню очень найти ищу меня потом один одна отзыв отзыве отзывах рецензия рецензии пишут писали критики the and about movie film series where which that then this from with remember review reviews critics'.split(' '));
 
 function plotWords(query) {
   return [...new Set((query.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])
@@ -20,12 +20,17 @@ async function findPlotMovies(query, json, findMovie) {
   if (words.length < 2 || /^https?:\/\//i.test(query)) return [];
   const russian = /\p{Script=Cyrillic}/u.test(query);
   const wikipedia = russian ? 'ru.wikipedia.org' : 'en.wikipedia.org';
-  const topic = russian ? 'сюжет' : 'plot';
+  const plot = russian ? 'сюжет' : 'plot';
+  const reception = russian ? '(рецензия OR отзывы OR критика)' : '(review OR reception OR critics)';
   const keywords = [...words].sort((a, b) => b.length - a.length).slice(0, 4);
-  const searches = [...new Set([words.join(' '), keywords.join(' ')])];
+  const searches = [...new Set([
+    words.join(' '),
+    `${keywords.join(' ')} ${plot}`,
+    `${keywords.join(' ')} ${reception}`,
+  ])];
   const pages = await Promise.allSettled(searches.map(async text => {
     const body = await json(wikiUrl(wikipedia, {
-      action: 'query', generator: 'search', gsrsearch: `${text} ${topic}`,
+      action: 'query', generator: 'search', gsrsearch: text,
       gsrwhat: 'text', gsrlimit: '14', gsrnamespace: '0', prop: 'pageprops', ppprop: 'wikibase_item|disambiguation',
     }));
     return (body.query?.pages ?? []).sort((a, b) => a.index - b.index)

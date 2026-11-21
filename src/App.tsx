@@ -36,6 +36,7 @@ const CatalogScene = lazy(() => import('./CatalogScene'))
 
 const EMPTY: AppState = { profile: {name: 'Моя NOVA', avatar: ''}, favorites: [], history: [], releases: [], sites: [], tabs: [], active: null, source: 'https://brogiro.cfd', theme: window.kadr?.initialTheme || 'light', motion: window.kadr?.initialMotion !== false, glassBackground: window.kadr?.initialGlassBackground !== false, taste:EMPTY_TASTE, sidebarCollapsed: Boolean(window.kadr?.initialSidebarCollapsed), immersive: false, fullscreen: false }
 const api = window.kadr
+const updateSound = new URL('./assets/update-ready.wav', import.meta.url).href
 const INITIAL_APPEARANCE = { theme: EMPTY.theme, motion: EMPTY.motion, glassBackground: EMPTY.glassBackground }
 const names: Record<Section, string> = { home: 'Обзор', search: 'Поиск', trending: 'В тренде', new: 'Новинки', films: 'Фильмы', series: 'Сериалы', favorites: 'Моя коллекция', history: 'Недавнее', releases: 'Скоро выйдет' }
 type BrowseState = { movies: Movie[]; nextPage: number | null; loading: boolean; error: string }
@@ -67,6 +68,8 @@ export default function App() {
   const [snapshot, setState] = useState(EMPTY)
   const [languageMode, setLanguageMode] = useState<LanguageMode>(api?.initialLanguageMode ?? getLanguage())
   const [update, setUpdate] = useState<import('./types').UpdateStatus>({ phase: 'idle' })
+  const [dismissedUpdate, setDismissedUpdate] = useState('')
+  const [updateFocus, setUpdateFocus] = useState(0)
   const { section, group, startSearch, navigate: setSection, navigateGroup, back, forward, query, filter, genre, sort, year, region, setFilter, setGenre, setSort, setYear, setRegion } = useCatalogNavigation()
   const [excludedCountries, setExcludedCountries] = useState<string[]>([])
   const catalogPositions = useRef(new Map<string, CatalogPosition>())
@@ -116,6 +119,13 @@ export default function App() {
   const notify = useCallback((message: string) => {
     setNotification({ id: ++nextNotification.current, message })
   }, [])
+  const openUpdates = useCallback(() => {
+    setSearchOpen(false)
+    setNotice(null)
+    setDetail(null)
+    setPanelHistory(previous => visitPanel(previous, 'settings'))
+    setUpdateFocus(previous => previous + 1)
+  }, [])
   const { appearance, toggleTheme, changeToggle } = useAppearance(INITIAL_APPEARANCE, notify)
   const state = useMemo(() => ({ ...snapshot, ...appearance }), [snapshot, appearance])
   const changeLanguage = async (next: LanguageMode) => {
@@ -155,8 +165,16 @@ export default function App() {
     let active = true, receivedUpdate = false
     const stop = api.onState(next => { receivedUpdate = true; setState(next) })
     let receivedStatus = false
-    const stopUpdate = api.onUpdateStatus(status => { receivedStatus = true; setUpdate(status) })
-    void api.updateStatus().then(status => { if (active && !receivedStatus) setUpdate(status) }).catch(() => {})
+    let soundedVersion = ''
+    const acceptUpdate = (status: import('./types').UpdateStatus) => {
+      setUpdate(status)
+      if (status.phase !== 'ready' || status.version === soundedVersion) return
+      soundedVersion = status.version
+      void new Audio(updateSound).play().catch(() => {})
+    }
+    const stopUpdate = api.onUpdateStatus(status => { receivedStatus = true; acceptUpdate(status) })
+    const stopShowUpdates = api.onShowUpdates(openUpdates)
+    void api.updateStatus().then(status => { if (active && !receivedStatus) acceptUpdate(status) }).catch(() => {})
     api.state().then(initial => { if (active && !receivedUpdate) setState(initial) })
       .catch(error => { if (active) notify(error.message) })
     const stopFeedback=api.onFeedback(feedback => setNotification({ id: ++nextNotification.current, feedback }))
@@ -166,8 +184,8 @@ export default function App() {
       else { setSearchDraft(queryRef.current); setSearchOpen(true) }
     })
     const stopReleases = api.onShowReleases(() => { api.home(); setPanelHistory([]); setDetail(null); setSection('releases') })
-    return () => { active = false; stop(); stopUpdate(); stopFeedback(); stopFocus(); stopReleases() }
-  }, [notify])
+    return () => { active = false; stop(); stopUpdate(); stopShowUpdates(); stopFeedback(); stopFocus(); stopReleases() }
+  }, [notify, openUpdates])
 
   const buildSearchIndex = useCallback(async (page = 1) => {
     if (!api || searchInFlight.current === searchRevision.current) return
@@ -381,7 +399,7 @@ export default function App() {
   const clearPages = () => { setPanelHistory([]); setDetail(null) }
   const closePage = () => { if (detail) setDetail(null); else if (panel) backPanel() }
   const openProfile = () => openPanel('profile')
-  const openSettings = () => openPanel('settings')
+  const openSettings = () => { setUpdateFocus(0); openPanel('settings') }
   const openTaste = () => openPanel('taste')
   const goGroup = (next: NavigationGroup, instant = false) => { clearPages(); setNavigationInstant(instant); navigateGroup(next); if (state.active) perform(() => api!.home()) }
   const returnToCatalog = () => { clearPages(); perform(() => api!.home()) }
@@ -390,16 +408,19 @@ export default function App() {
   const localNavigation = section === 'releases' ? <PremiereNavigation value={releaseTab} change={(value, instant)=>{setNavigationInstant(instant);setReleaseTab(value)}} count={state.releases.length} instant={navigationInstant}/> : group === 'catalog' || group === 'library' ? <SectionNavigation section={section} navigate={go} taste={openTaste} instant={navigationInstant}/> : null
   const pageView = detail ? <PageFrame title={detail.title} parent={tasteOpen ? t("Мои оценки") : t(names[section])} back={()=>setDetail(null)}><Suspense fallback={<p role="status">{t("Загружаем описание…")}</p>}><MovieDetails key={detail.id} initial={detail} saved={favoriteIds.has(detail.id)} followed={state.releases.some(m=>m.id===detail.id)} busy={watching!==null} close={()=>setDetail(null)} watch={requestWatch} favorite={toggleFavorite} follow={m=>perform(()=>api!.followRelease(m))} notify={notify} taste={state.taste} rate={(m,a)=>perform(()=>api!.rateMovie(m,a))}/></Suspense></PageFrame>
     : tasteOpen ? <PageFrame title={t("Мои оценки")} parent={t('Моя NOVA')} back={backPanel}><Suspense fallback={<p role="status">{t("Загружаем оценки…")}</p>}><TasteDialog taste={state.taste} detail={setDetail} rate={(m,a)=>api!.rateMovie(m,a)} clearGenre={g=>api!.tasteGenres(state.taste.genres,state.taste.blockedGenres.filter(genre=>genre!==g))}/></Suspense></PageFrame>
-    : settingsOpen ? <PageFrame title={t("Настройки")} parent={t('Моя NOVA')} back={backPanel}><Suspense fallback={<p role="status">{t("Открываем настройки…")}</p>}><SettingsDialog state={state} update={update} languageMode={languageMode} changeLanguage={changeLanguage} changeMotion={value=>changeToggle('motion', value)} changeBackground={value=>changeToggle('glassBackground', value)}/></Suspense></PageFrame>
+    : settingsOpen ? <PageFrame title={t("Настройки")} parent={t('Моя NOVA')} back={backPanel}><Suspense fallback={<p role="status">{t("Открываем настройки…")}</p>}><SettingsDialog state={state} update={update} updateFocus={updateFocus} languageMode={languageMode} changeLanguage={changeLanguage} changeMotion={value=>changeToggle('motion', value)} changeBackground={value=>changeToggle('glassBackground', value)}/></Suspense></PageFrame>
     : profileOpen ? <PageFrame title={t("Профиль")} parent="" back={backPanel}><Suspense fallback={<p role="status">{t("Открываем профиль…")}</p>}><ProfilePage state={state} save={patch=>api!.updateProfile(patch)} collection={()=>go('favorites')} history={()=>go('history')} taste={openTaste} settings={openSettings}/></Suspense></PageFrame>
     : null
+  const availableUpdate = update.phase === 'ready' || update.phase === 'downloading' || update.phase === 'external' ? update : null
+  const updateKey = availableUpdate && `${availableUpdate.version}:${availableUpdate.phase}`
+  const updateTitle = availableUpdate && t(availableUpdate.phase === 'ready' ? 'NOVA {0} готова к установке' : 'Доступна версия {0}', availableUpdate.version)
 
   return <GlassScene className={`app kadr-topnav ${state.immersive && !overlay && !unsafeMenu ? 'player-immersive' : ''}`} data-theme={state.theme} data-optics={optics.status} data-optic-maps={optics.maps} data-navigation-instant={navigationInstant} appearance={state.theme} material="regular" motion={reducedMotion?'none':'full'} maxSurfaces={12} onDiagnostic={glassDiagnostic}>
     <StartupIntro />
     <GlassContent className="app-backdrop">
     <div className="reference-backdrop" aria-hidden="true"/>
     <div className="window-bar global-caption" aria-hidden="true"/>
-    <AppNavigation state={state} group={panel||remote?null:group} pageKey={`${panel||''}:${detail?.id||''}:${section}:${remote?.id||''}`} instant={navigationInstant} navigate={goGroup} search={openSearch} settings={openSettings} taste={openTaste} editProfile={openProfile} history={()=>go('history')} theme={origin=>toggleTheme(origin, !remote || pageActive)} details={showDetails} readNotices={id=>perform(()=>api!.readReleases(id))} dismissNotices={ids=>perform(()=>api!.dismissReleaseNotices(ids))} activateTab={id=>{clearPages();perform(()=>api!.tab(id))}}/>
+    <AppNavigation state={state} group={panel||remote?null:group} pageKey={`${panel||''}:${detail?.id||''}:${section}:${remote?.id||''}`} instant={navigationInstant} navigate={goGroup} search={openSearch} settings={openSettings} updateTitle={updateTitle ?? undefined} openUpdates={openUpdates} taste={openTaste} editProfile={openProfile} history={()=>go('history')} theme={origin=>toggleTheme(origin, !remote || pageActive)} details={showDetails} readNotices={id=>perform(()=>api!.readReleases(id))} dismissNotices={ids=>perform(()=>api!.dismissReleaseNotices(ids))} activateTab={id=>{clearPages();perform(()=>api!.tab(id))}}/>
 
     <div className="workspace">
       {state.tabs.length > 0 && !pageActive && remote && <div ref={tabsRoot} className="tabbar"><SelectionHighlight container={tabsRoot} axis="horizontal" value={!pageActive&&remote ? `remote-${remote.id}` : null} instant={navigationInstant} layoutKey={state.tabs.map(t => `${t.id}:${t.title}`).join('|')} />{state.tabs.map(tab => <div data-selection-key={`remote-${tab.id}`} className={`remote-tab ${tab.id === state.active && !pageActive ? 'active' : ''}`} key={tab.id}><button onClick={e => { clearPages(); setNavigationInstant(e.detail === 0); perform(() => api!.tab(tab.id)) }}>{tab.kind !== 'site' ? <Play size={13} /> : <Globe2 size={13} />}<span>{tab.title}</span></button><button aria-label={t("Закрыть {0}", tab.title)} className="tab-close" onClick={() => perform(() => api!.closeTab(tab.id))}><X size={13} /></button></div>)}</div>}
@@ -463,6 +484,13 @@ export default function App() {
     {notification && <FeedbackToast key={notification.id} notice={notification.feedback} message={notification.message}
       close={() => setNotification(current => current?.id === notification.id ? null : current)}
       undo={notification.feedback?.undoToken ? () => api!.undoFeedback(notification.feedback!.undoToken!) : undefined}/>}
+    {!notification && !settingsOpen && !state.immersive && availableUpdate && updateKey && updateKey !== dismissedUpdate &&
+      <FeedbackToast key={updateKey} title={updateTitle ?? undefined} duration={10000}
+        message={availableUpdate.phase === 'downloading' ? t('Скачиваем обновление в фоне.')
+          : availableUpdate.phase === 'ready' ? t('Перезапустите NOVA, чтобы установить обновление.') : undefined}
+        action={availableUpdate.phase === 'downloading' ? { label: t('Подробнее'), run: async () => openUpdates() }
+          : { label: t(availableUpdate.phase === 'ready' ? 'Установить' : 'Открыть релиз'), run: () => api!.applyUpdate() }}
+        close={() => setDismissedUpdate(updateKey)}/>}
     {searchOpen && <SearchDialog query={searchDraft} change={setSearchDraft} movies={searchSuggestions} busy={indexing} error={indexError} close={closeSearch} choose={chooseSearch} submit={search} allResults={format=>beginSearch(searchDraft,format)} />}
     {notice && <ContentNotice movie={notice} close={() => setNotice(null)} start={() => { const movie = notice; setNotice(null); void watch(movie) }} />}
   </GlassScene>

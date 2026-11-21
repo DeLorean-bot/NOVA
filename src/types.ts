@@ -57,6 +57,7 @@ export type API = {
   checkUpdate(): Promise<void>;
   applyUpdate(): Promise<void>;
   onUpdateStatus(listener: (status: UpdateStatus) => void): () => void;
+  onShowUpdates(listener: () => void): () => void;
   search(query: string, page?: number): Promise<{ movies: Movie[]; nextPage: number | null }>;
   browse(type: 'films' | 'series', page?: number, options?: { year?: number; minYear?: number; order?: 'date' | 'year' }): Promise<{ movies: Movie[]; nextPage: number | null }>;
   recommendations(refresh?: boolean): Promise<{ movies: Movie[]; added: number; hasMore: boolean; seen: number[] }>;

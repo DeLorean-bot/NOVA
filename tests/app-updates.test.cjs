@@ -6,6 +6,7 @@ const { createAppUpdates } = require('../electron/app-updates.cjs');
 test('installed updates download automatically and install only after the restart action', async () => {
   const updater = new EventEmitter();
   const phases = [];
+  const notices = [];
   let finishDownload;
   let checks = 0;
   const downloadPromise = new Promise(resolve => { finishDownload = resolve; });
@@ -16,7 +17,7 @@ test('installed updates download automatically and install only after the restar
   };
   const installs = [];
   updater.quitAndInstall = (...options) => installs.push(options);
-  const updates = createAppUpdates({ updater, publish: state => phases.push(state.phase) });
+  const updates = createAppUpdates({ updater, publish: state => phases.push(state.phase), announce: state => notices.push(state.phase) });
   assert.equal(updater.autoDownload, true);
   assert.equal(updater.autoInstallOnAppQuit, false);
   const checking = updates.check();
@@ -35,6 +36,7 @@ test('installed updates download automatically and install only after the restar
   assert.equal(checks, 1);
   assert.deepEqual(installs, [[true, true]]);
   assert.deepEqual(phases, ['checking', 'downloading', 'downloading', 'ready', 'installing']);
+  assert.deepEqual(notices, ['downloading', 'ready']);
 });
 
 test('portable updates open the release provided by the project lookup', async () => {

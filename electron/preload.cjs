@@ -29,6 +29,11 @@ contextBridge.exposeInMainWorld('kadr', {
     ipcRenderer.on('kadr:update-status', status);
     return () => ipcRenderer.removeListener('kadr:update-status', status);
   },
+  onShowUpdates: listener => {
+    const show = () => listener();
+    ipcRenderer.on('kadr:show-updates', show);
+    return () => ipcRenderer.removeListener('kadr:show-updates', show);
+  },
   catalog: (type, page) => invoke('catalog', type, page),
   search: (query, page = 1) => invoke('search', query, page),
   browse: (type, page = 1, options) => invoke('browse', type, page, options),

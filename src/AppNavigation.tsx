@@ -4,7 +4,7 @@ import { Select } from './Select'
 import { announceMenu } from './menu-layer'
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Bell, Clock3, User, X, ChevronDown, ChevronRight, Moon, Palette, Search, Settings, Sun } from './icons'
+import { ArrowDown, Bell, Clock3, User, X, ChevronDown, ChevronRight, Moon, Palette, Search, Settings, Sun } from './icons'
 import { SelectionHighlight } from './SelectionHighlight'
 import { PRIMARY_SECTIONS, type NavigationGroup, type Section } from './navigation-model'
 import type { AppState, Movie } from './types'
@@ -16,10 +16,11 @@ import monogram from './assets/nova-mark.png'
 import { useNativeMenu } from './useNativeMenu'
 import type { NativeMenuItem } from './types'
 
-export function AppNavigation({ state, group, instant, navigate, search, settings, taste, theme, details, readNotices, editProfile, history, dismissNotices, pageKey, activateTab }: {
+export function AppNavigation({ state, group, instant, navigate, search, settings, updateTitle, openUpdates, taste, theme, details, readNotices, editProfile, history, dismissNotices, pageKey, activateTab }: {
   activateTab: (id:string)=>void; pageKey: string; dismissNotices: (ids: number[]) => void; state: AppState; group: NavigationGroup | null; instant: boolean
   navigate: (group: NavigationGroup, instant: boolean) => void
   search: () => void; settings: () => void; taste: () => void; theme: (origin: ThemeOrigin) => void; editProfile: () => void; history: () => void
+  updateTitle?: string; openUpdates: () => void
   details: (movie: Movie) => void; readNotices: (id: number) => void
 }) {
   const header = useRef<HTMLElement>(null)
@@ -114,6 +115,7 @@ export function AppNavigation({ state, group, instant, navigate, search, setting
     <div className="header-actions">
       {state.tabs.length>0&&!state.active&&<Select label={t("Открытые плееры")} className="header-players" value="" onChange={value=>{if(value)activateTab(value)}} options={[{value:'',label:t("Открытые плееры")},...state.tabs.map(tab=>({value:tab.id,label:tab.title}))]}/>}
       <button className="header-search global-search-launch" aria-label={t("Открыть поиск")} aria-description={t("Поиск · Ctrl L")} onClick={search}><Search size={18} /><span>{t("Поиск")}</span></button>
+      {updateTitle && <button className="nav-round" aria-label={updateTitle} title={updateTitle} onClick={openUpdates}><ArrowDown size={18}/><span className="header-notice-dot" aria-hidden="true"/></button>}
       <button className="nav-round" ref={notices} aria-label={t("Уведомления о премьерах")}  aria-haspopup="menu" aria-expanded={open === 'notices'} aria-controls={open==='notices'&&!native.enabled?id:undefined} onClick={event => toggle('notices',event.detail===0)} onKeyDown={event=>menuKeys('notices',event)}><Bell size={18} />{hasUnread && <span className="header-notice-dot" />}</button>
       <button className="nav-round header-theme" aria-label={state.theme === 'dark' ? t("Светлая тема") : t("Тёмная тема")}  onClick={event => { const r = event.currentTarget.getBoundingClientRect(); theme({x:r.x+r.width/2,y:r.y+r.height/2}) }}><span className="theme-symbol"><span data-active={state.theme === 'dark'}><Sun size={19}/></span><span data-active={state.theme === 'light'}><Moon size={19}/></span></span></button>
       <button className="header-profile nav-pill" ref={profile} aria-haspopup="menu" aria-expanded={open === 'profile'} aria-label={t(state.profile.name)} aria-controls={open==='profile'&&!native.enabled?id:undefined} onClick={event => toggle('profile',event.detail===0)} onKeyDown={event=>menuKeys('profile',event)}><ProfileAvatar profile={state.profile}/><span className="profile-label">{t(state.profile.name)}</span><ChevronDown size={12} /></button>

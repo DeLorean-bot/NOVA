@@ -7,9 +7,9 @@ import { Info, X } from './icons'
 import type { FeedbackNotice } from './types'
 import { useDialogDismiss } from './useDialogDismiss'
 
-type Props = { notice?: FeedbackNotice; message?: string; close: () => void; undo?: () => Promise<void> }
+type Props = { notice?: FeedbackNotice; title?: string; message?: string; close: () => void; undo?: () => Promise<void>; action?: { label: string; run: () => Promise<void> }; duration?: number }
 
-export function FeedbackToast({ notice, message, close, undo }: Props) {
+export function FeedbackToast({ notice, title = notice?.movie.title, message, close, undo, action, duration = 4500 }: Props) {
   const popup = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -31,26 +31,27 @@ export function FeedbackToast({ notice, message, close, undo }: Props) {
   }, [container])
   useEffect(() => {
     if (hovered || focused || busy) return
-    const timer = setTimeout(dismiss, 4500)
+    const timer = setTimeout(dismiss, duration)
     return () => clearTimeout(timer)
-  }, [dismiss, hovered, focused, busy, error])
+  }, [dismiss, hovered, focused, busy, error, duration])
 
   const text = t(error || notice?.message || message || '')
+  const command = undo ? { label: t('Отменить'), run: undo } : action
   return createPortal(<div ref={popup} className="feedback-toast nl-feedback" popover="manual"
     onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)}
     onFocusCapture={() => setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false) }}>
     <GlassSurface render={<span/>} className="notice-refraction" radius={16} material="clear" refraction={12} aria-hidden="true"/>
     <span className="feedback-toast-art" aria-hidden="true">{notice ? <MoviePoster movie={notice.movie} lazy={false} decorative/> : <Info size={18}/>}</span>
     <div className="feedback-toast-copy" role="status" aria-atomic="true">
-      {notice && <strong title={notice.movie.title}>{notice.movie.title}</strong>}
+      {title && <strong title={title}>{title}</strong>}
       <span title={text}>{text}</span>
     </div>
-    {undo && <button className="feedback-undo" disabled={busy} onClick={async () => {
+    {command && <button className="feedback-undo" disabled={busy} onClick={async () => {
       setBusy(true)
-      try { await undo() }
-      catch { setError(t("Не удалось отменить действие")) }
+      try { await command.run(); if (action) dismiss() }
+      catch { setError(t(undo ? 'Не удалось отменить действие' : 'Не удалось выполнить действие')) }
       finally { setBusy(false) }
-    }}>{t("Отменить")}</button>}
+    }}>{command.label}</button>}
     <button className="icon-button feedback-close" aria-label={t("Закрыть уведомление")} onClick={dismiss}><X size={17}/></button>
   </div>, container)
 }
