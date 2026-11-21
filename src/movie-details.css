@@ -1,8 +1,8 @@
 .movie-detail { width: min(1060px,calc(100vw - 88px)); max-height: calc(100vh - 72px); margin: auto; padding: 48px; border: 1px solid var(--floating-edge); border-radius: 24px; color: var(--fg); background: color-mix(in srgb,var(--panel) 90%,transparent); backdrop-filter: blur(24px) saturate(1.08); box-shadow: inset 0 1px 0 var(--material-sheen),var(--popover-shadow); overflow: auto; scrollbar-width: thin; scrollbar-color: var(--muted) transparent; animation: detail-enter 240ms cubic-bezier(.22,1,.36,1); }
 .movie-detail::backdrop { background: #080d1699; backdrop-filter: blur(12px); }
-.app .movie-detail .detail-watch.lg-surface { border-radius: 999px; background: color-mix(in srgb,var(--action-bg) 78%,#141b33) !important; color: #fff !important; box-shadow: inset 0 1px 0 #ffffff29; }
-.app .movie-detail .detail-watch.lg-surface:hover { background: color-mix(in srgb,var(--action-bg) 86%,#141b33) !important; }
-.app .movie-detail .detail-watch[aria-busy='true'] { opacity: .82; }
+.app .movie-detail .detail-watch { border-radius: 999px; background: #3159d1 !important; color: #fff !important; box-shadow: inset 0 1px 0 #ffffff29; }
+.app .movie-detail .detail-watch:hover:not(:disabled) { background: #375fd8 !important; }
+.app .movie-detail .detail-watch:disabled { opacity: .65; }
 .app .movie-detail .detail-close { position: absolute; right: 17px; top: 17px; }
 .movie-detail-grid { display: grid; grid-template-columns: 260px minmax(0,1fr); gap: 32px; }
 .detail-art { align-self: start; aspect-ratio: 2/3; border-radius: 16px; overflow: hidden; background: var(--glass); }
