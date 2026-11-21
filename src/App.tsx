@@ -449,7 +449,7 @@ export default function App() {
 
         {showHero && <RecommendationShelf loading={picks.loading} error={picks.error} description={state.taste.liked.length ? t("По вашим просмотрам и оценкам") : state.history.some(m => (m.watchedSeconds || 0) >= 120) ? t("По тому, что вы смотрите") : t("Фильмы и сериалы для знакомства")} refresh={() => { picks.refresh(true,JSON.parse(exposure)); setHeroIndex(0) }}><MovieGrid movies={shelfMovies} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails} /></RecommendationShelf>}
 
-        {(unfilteredCount > 0 || (isCatalog && section !== 'home')) && <div className="filterbar">
+        {section !== 'home' && (unfilteredCount > 0 || isCatalog) && <div className="filterbar">
           {(query.trim() || newReleases || section === 'favorites' || section === 'history') && <FormatTabs value={filter} instant={navigationInstant} change={(value, instant) => { setNavigationInstant(instant); setFilter(value); setGenre('Все жанры') }}/>}
           {(newReleases || section === 'films' || section === 'series' || searchingCatalog) && <Select
             label={t("Год выпуска")} className="genre-select year-select" value={year}
