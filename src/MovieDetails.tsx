@@ -3,7 +3,7 @@ import { mergeMovieDetails, movieUnavailable } from './movie-availability'
 import { OpinionButtons } from './OpinionButtons'
 import { MoviePoster } from './MoviePoster'
 import { useEffect, useRef, useState } from 'react'
-import { Bell, Bookmark, Check, Clapperboard, ExternalLink, Play, RotateCw } from './icons'
+import { Bell, Bookmark, Check, ExternalLink, Film, RotateCw } from './icons'
 import type { Movie, TomatoRating } from './types'
 import './movie-details.css'
 import freshTomato from './assets/rotten-tomatoes.svg'
@@ -60,10 +60,10 @@ export default function MovieDetails({ initial, saved, followed, busy, close, wa
         {(ratingsBusy||tomato?.rating)&&<div className="detail-rating-note" role="status">{ratingsBusy ? t("Обновляем рейтинги…") : tomato?.rating?.source === 'Wikidata' ? t("Rotten Tomatoes · данные Wikidata на {0}", new Date(tomato.rating.checkedAt).toLocaleDateString(getLanguage())) : t("Rotten Tomatoes · оценки критиков")}</div>}
         <div className="detail-main-actions">
           <button type="button" className="primary-button detail-watch" onClick={() => unavailable ? follow(movie) : watch(movie)} disabled={busy || (unavailable && followed)} aria-busy={busy}>
-            {busy ? <RotateCw size={18} className="spin"/> : unavailable ? <Bell size={20}/> : <Play size={20} fill="currentColor"/>}
+            {busy ? <RotateCw size={18} className="spin"/> : unavailable ? <Bell size={20}/> : <span className="detail-play-icon" aria-hidden="true"/>}
             <span role={busy ? 'status' : undefined}>{busy ? t("Ищем доступные плееры") : unavailable ? followed ? t("Отслеживается") : upcoming ? t("Буду ждать") : t("Сообщить о появлении") : t("Смотреть")}</span>
           </button>
-          <button className="quiet-button" onClick={trailer} disabled={trailerBusy}>{trailerBusy ? <RotateCw size={19} className="spin" /> : <Clapperboard size={19} />}{movie.trailer ? t("Трейлер") : t("Трейлеры на Кинопоиске")}</button>
+          <button className="quiet-button" onClick={trailer} disabled={trailerBusy}>{trailerBusy ? <RotateCw size={19} className="spin" /> : <Film size={20} />}{movie.trailer ? t("Трейлер") : t("Трейлеры на Кинопоиске")}</button>
           <button className={`icon-button detail-save ${saved ? 'saved' : ''}`} aria-label={saved ? t("Убрать из коллекции") : t("В коллекцию")} aria-pressed={saved} onClick={() => favorite(movie)}>{saved ? <Check size={21} /> : <Bookmark size={21} />}</button>
         </div>
         <OpinionButtons movie={movie} taste={taste} rate={rate}/>

@@ -132,10 +132,38 @@
 .movie-list-actions :is(.poster-rating,.poster-save) { position: static; }
 .app .movie-list-actions .poster-save { opacity: 1; color: var(--secondary) !important; background: var(--nav-glass) !important; }
 .app .movie-list-actions .poster-save.is-saved { color: var(--accent) !important; }
-.app .header-return { gap: 7px; max-width: 174px; padding: 0 12px; color: var(--fg); font-size: 12px; }
-.header-return > .material-symbol { flex: none; color: var(--accent); }
-.header-return > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 1120px) { .app .header-return { width: 44px; justify-content: center; padding: 4px; } .header-return > span:last-child { display: none; } }
+.app .player-preview {
+  position: fixed;
+  z-index: 5;
+  left: 24px;
+  bottom: 24px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: min(280px, calc(100vw - 48px));
+  padding: 8px 14px 8px 8px;
+  border: 0;
+  border-radius: 16px;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--menu-solid) 50%, var(--menu-glass));
+  backdrop-filter: var(--menu-blur);
+  box-shadow: var(--menu-shadow);
+  text-align: left;
+  cursor: pointer;
+}
+.app .player-preview:hover { background: color-mix(in srgb, var(--menu-solid) 65%, var(--menu-glass-hover)); }
+.player-preview-art { display: grid; place-items: center; width: 40px; height: 58px; overflow: hidden; border-radius: 8px; background: var(--raised); color: var(--secondary); }
+.player-preview-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.player-preview-art .poster-unavailable { padding: 0; }
+.player-preview-art .poster-unavailable > span:last-child { display: none; }
+.player-preview-copy { display: grid; gap: 4px; min-width: 0; }
+.player-preview-copy strong { font-size: 13px; line-height: 18px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.player-preview-copy > span { color: var(--secondary); font-size: 12px; line-height: 16px; }
+.player-preview > .material-symbol { color: var(--accent); }
+@media (forced-colors: active), (prefers-reduced-transparency: reduce) {
+  .app .player-preview, .app .player-preview:hover { background: var(--menu-solid); backdrop-filter: none; border: 1px solid var(--edge); }
+}
 .watch-extras-title,.watch-extras { max-width: 1120px; margin-inline: auto; }
 .watch-extras-title { margin-block: 24px; outline: 0; }
 .watch-extras { display: grid; gap: 24px; }

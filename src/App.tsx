@@ -250,6 +250,7 @@ export default function App() {
   useLayoutEffect(() => { document.documentElement.dataset.theme = state.theme }, [state.theme])
   useLayoutEffect(() => { document.documentElement.dataset.motion = state.motion ? 'on' : 'off'; window.dispatchEvent(new Event('kadr:motion-change')) }, [state.motion])
   const remote = state.tabs.find(t => t.id === state.active)
+  const parkedPlayer = state.active === null ? state.tabs.find(tab => tab.kind === 'player') : undefined
   const picks = useRecommendations(state.history, state.favorites, profileReady && !remote && section === 'home' && !query.trim(),state.taste)
   const pageActive = Boolean(detail || companion || settingsOpen || tasteOpen || profileOpen)
   const overlay = pageActive || searchOpen || Boolean(notice)
@@ -416,6 +417,7 @@ export default function App() {
 
 
   const clearPages = () => { setPanelHistory([]); setDetail(null); setCompanion(null) }
+  const activateTab = (id: string) => { clearPages(); perform(() => api!.tab(id)) }
   const closePage = () => { if (detail) setDetail(null); else if (companion) setCompanion(null); else if (panel) backPanel() }
   const openCompanion = (movie: Movie) => {
     const request = api?.scene()
@@ -452,7 +454,18 @@ export default function App() {
     <GlassContent className="app-backdrop" inert={!startupDone}>
     <div className="reference-backdrop" aria-hidden="true"/>
     <div className="window-bar global-caption" aria-hidden="true"/>
-    <AppNavigation state={state} group={panel||remote?null:group} pageKey={`${panel||''}:${detail?.id||''}:${section}:${remote?.id||''}`} instant={navigationInstant} navigate={goGroup} search={openSearch} settings={openSettings} updateTitle={updateTitle ?? undefined} openUpdates={openUpdates} taste={openTaste} editProfile={openProfile} history={()=>go('history')} theme={origin=>toggleTheme(origin, !remote || pageActive)} details={showDetails} readNotices={id=>perform(()=>api!.readReleases(id))} dismissNotices={ids=>perform(()=>api!.dismissReleaseNotices(ids))} activateTab={id=>{clearPages();perform(()=>api!.tab(id))}}/>
+    <AppNavigation state={state} group={panel||remote?null:group} pageKey={`${panel||''}:${detail?.id||''}:${section}:${remote?.id||''}`} instant={navigationInstant} navigate={goGroup} search={openSearch} settings={openSettings} updateTitle={updateTitle ?? undefined} openUpdates={openUpdates} taste={openTaste} editProfile={openProfile} history={()=>go('history')} theme={origin=>toggleTheme(origin, !remote || pageActive)} details={showDetails} readNotices={id=>perform(()=>api!.readReleases(id))} dismissNotices={ids=>perform(()=>api!.dismissReleaseNotices(ids))} activateTab={activateTab}/>
+    {parkedPlayer && !overlay && <button type="button" className="player-preview"
+      aria-label={t('Вернуться к просмотру «{0}»', parkedPlayer.title)} onClick={() => activateTab(parkedPlayer.id)}>
+      <span className="player-preview-art" aria-hidden="true">
+        {parkedPlayer.movie ? <MoviePoster key={parkedPlayer.movie.id} movie={parkedPlayer.movie} lazy={false} decorative/> : <Film size={24}/>}
+      </span>
+      <span className="player-preview-copy">
+        <strong title={parkedPlayer.title}>{parkedPlayer.title}</strong>
+        <span>{t('Продолжить просмотр')}</span>
+      </span>
+      <ArrowRight size={19}/>
+    </button>}
 
     <div className="workspace">
       {state.tabs.length > 0 && !pageActive && remote && <div ref={tabsRoot} className="tabbar"><SelectionHighlight container={tabsRoot} axis="horizontal" value={!pageActive&&remote ? `remote-${remote.id}` : null} instant={navigationInstant} layoutKey={state.tabs.map(t => `${t.id}:${t.title}`).join('|')} />{state.tabs.map(tab => <div data-selection-key={`remote-${tab.id}`} className={`remote-tab ${tab.id === state.active && !pageActive ? 'active' : ''}`} key={tab.id}><button onClick={e => { clearPages(); setNavigationInstant(e.detail === 0); perform(() => api!.tab(tab.id)) }}>{tab.kind !== 'site' ? <Play size={13} /> : <Globe2 size={13} />}<span>{tab.title}</span></button><button aria-label={t("Закрыть {0}", tab.title)} className="tab-close" onClick={() => perform(() => api!.closeTab(tab.id))}><X size={13} /></button></div>)}</div>}

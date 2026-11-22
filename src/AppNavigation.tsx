@@ -3,7 +3,7 @@ import { Select } from './Select'
 import { announceMenu } from './menu-layer'
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowDown, Bell, Clock3, User, X, ChevronDown, ChevronRight, Moon, Palette, Play, Search, Settings, Sun } from './icons'
+import { ArrowDown, Bell, Clock3, User, X, ChevronDown, ChevronRight, Moon, Palette, Search, Settings, Sun } from './icons'
 import { SelectionHighlight } from './SelectionHighlight'
 import { PRIMARY_SECTIONS, type NavigationGroup, type Section } from './navigation-model'
 import type { AppState, Movie } from './types'
@@ -25,8 +25,7 @@ export function AppNavigation({ state, group, instant, navigate, search, setting
   const header = useRef<HTMLElement>(null)
   useFloatingHeader(header)
   const nav = useRef<HTMLElement>(null), profile = useRef<HTMLButtonElement>(null), notices = useRef<HTMLButtonElement>(null), popup = useRef<HTMLDivElement>(null)
-  const parkedPlayer = !state.active ? state.tabs.find(tab => tab.kind === 'player') : undefined
-  const otherTabs = state.active ? [] : state.tabs.filter(tab => tab !== parkedPlayer)
+  const otherTabs = state.active ? [] : state.tabs.filter(tab => tab.kind !== 'player')
   const [open, setOpen] = useState<'profile' | 'notices' | null>(null)
   const [menu, setMenu] = useState<'profile' | 'notices'>('profile')
   const [hover, setHover] = useState<{x:number;y:number;width:number;height:number}|null>(null)
@@ -114,7 +113,6 @@ export function AppNavigation({ state, group, instant, navigate, search, setting
       {(Object.entries(PRIMARY_SECTIONS) as [NavigationGroup, string][]).map(([key, label]) => <button key={key} data-selection-key={key} aria-current={group === key ? 'page' : undefined} onClick={e => navigate(key, e.detail === 0)}>{t(label)}</button>)}
     </nav>
     <div className="header-actions">
-      {parkedPlayer && <button className="header-return nav-pill" aria-label={t('Вернуться к просмотру «{0}»',parkedPlayer.title)} title={t('Вернуться к просмотру «{0}»',parkedPlayer.title)} onClick={()=>activateTab(parkedPlayer.id)}><Play size={18}/><span>{parkedPlayer.title}</span></button>}
       {otherTabs.length>0&&<Select label={t("Открытые плееры")} className="header-players" value="" onChange={value=>{if(value)activateTab(value)}} options={[{value:'',label:t("Открытые плееры")},...otherTabs.map(tab=>({value:tab.id,label:tab.title}))]}/>}
       <button className="header-search global-search-launch" aria-label={t("Открыть поиск")} aria-description={t("Поиск · Ctrl L")} onClick={search}><Search size={18} /><span>{t("Поиск")}</span></button>
       {updateTitle && <button className="nav-round" aria-label={updateTitle} title={updateTitle} onClick={openUpdates}><ArrowDown size={18}/><span className="header-notice-dot" aria-hidden="true"/></button>}
