@@ -72,6 +72,11 @@ async function findPlotMovies(query, json, findMovie, report = () => {}) {
   const initial = Promise.allSettled([searchArticles(words.slice(0, 12).join(' '))]);
   const spelling = russian && words.length >= 3 ? await correctPlotSpelling(words).catch(() => undefined) : undefined;
   const [[, firstWeight], ...queries] = plotQueries(words, spelling?.corrected ?? words, spelling?.keywords ?? words, russian);
+  const quotation = query.match(/[«“"]([\p{L}\p{N}\p{P}\s]{12,120})[»”"]/u)?.[1];
+  if (quotation) {
+    const phrase = (quotation.match(/[\p{L}\p{N}]+/gu) ?? []).slice(0, 12).join(' ');
+    if (phrase.includes(' ')) queries.push([`"${phrase}" ${russian ? 'фильм' : 'film'}`, 3.5]);
+  }
   report('reviews');
   const [firstPage, otherPages] = await Promise.all([initial, Promise.allSettled(queries.map(([text]) => searchArticles(text)))]);
   const pages = [...firstPage, ...otherPages];

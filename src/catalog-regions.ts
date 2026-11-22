@@ -57,8 +57,9 @@ export function countryOptions(locale: string) {
   })).sort((a, b) => a.label.localeCompare(b.label, locale))
 }
 
-export function matchesRegion(country: string | undefined, region: string) {
-  if (region === 'all') return true
+export function matchesRegions(country: string | undefined, selected: readonly string[]) {
+  if (selected.length === 0) return true
   const regions = productionCountries(country).map(code => codes.get(code ?? ''))
-  return region === 'without-cis' ? !regions.includes('cis') : regions.some(value => value === region)
+  if (selected.includes('without-cis')) return !regions.includes('cis')
+  return regions.some(value => value !== undefined && selected.includes(value))
 }

@@ -2,8 +2,8 @@ import { useCallback, useState } from 'react'
 import { navigationGroup, sectionForGroup, visitSection, type NavigationGroup, type NavigationHistory, type Section } from './navigation-model'
 
 export type { Section } from './navigation-model'
-type Filters = { query: string; filter: 'all' | 'films' | 'series'; genre: string; sort: string; year: string; region: string }
-const DEFAULTS: Filters = { query: '', filter: 'all', genre: 'Все жанры', sort: 'popular', year: 'all', region: 'all' }
+type Filters = { query: string; filter: 'all' | 'films' | 'series'; genre: string; sort: string; year: string; regions: string[] }
+const DEFAULTS: Filters = { query: '', filter: 'all', genre: 'Все жанры', sort: 'popular', year: 'all', regions: [] }
 
 /** Each section owns its filters for the lifetime of the window. */
 export function useCatalogNavigation() {
@@ -29,7 +29,7 @@ export function useCatalogNavigation() {
     setFilter: (filter: Filters['filter']) => update({ filter }),
     setGenre: (genre: string) => update({ genre }),
     setYear: (year: string) => update({ year }),
-    setRegion: (region: string) => update({ region }),
+    setRegions: (regions: string[]) => update({ regions }),
     setSort: (sort: string) => update({ sort }),
   }
 }

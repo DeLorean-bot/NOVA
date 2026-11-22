@@ -42,6 +42,14 @@ contextBridge.exposeInMainWorld('kadr', {
     return () => ipcRenderer.removeListener('kadr:search-phase', progress);
   },
   browse: (type, page = 1, options) => invoke('browse', type, page, options),
+  scene: () => invoke('scene'),
+  castCredits: id => invoke('cast-credits', id),
+  finishSeries: id => invoke('finish-series', id),
+  onWatchFinished: listener => {
+    const finished = (_, movie) => listener(movie);
+    ipcRenderer.on('kadr:watch-finished', finished);
+    return () => ipcRenderer.removeListener('kadr:watch-finished', finished);
+  },
   recommendations: (refresh = false) => invoke('recommendations', refresh),
   rateMovie: (movie, action) => invoke('rate-movie', movie, action),
   undoFeedback: token => invoke('undo-feedback', token),
@@ -72,7 +80,6 @@ contextBridge.exposeInMainWorld('kadr', {
   checkReleases: () => invoke('check-releases'),
   readReleases: id => invoke('read-releases', id),
   dismissReleaseNotices: ids => invoke('dismiss-release-notices', ids),
-  adblock: () => invoke('adblock'),
   updateProfile: patch => invoke('profile', patch),
   theme: mode => invoke('theme', mode),
   language: value => invoke('language', value),

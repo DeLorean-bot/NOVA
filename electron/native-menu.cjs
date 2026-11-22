@@ -30,13 +30,15 @@ function createNativeMenus({BrowserWindow,ipcMain,parent,getState,getView,onComm
     const pending=current,view=getView();if(!view||view.webContents.isDestroyed()||!view.getVisible())return;
     const model=pending.model,region=captureRegion(model.rect,view.getBounds(),parent.webContents.getZoomFactor());if(!region)return;
     capturing=true;
-    try {const image=await view.webContents.capturePage(region.rect);if(current===pending&&current.model===model&&!popup.isDestroyed())popup.webContents.send('kadr:popup-backdrop',{serial:pending.serial,image:image.toDataURL(),...region.style})}catch{}finally{capturing=false}
+    try {const image=await view.webContents.capturePage(region.rect,{stayHidden:true});if(current===pending&&current.model===model&&!popup.isDestroyed()&&!image.isEmpty())popup.webContents.send('kadr:popup-backdrop',{serial:pending.serial,image:image.toDataURL(),...region.style})}catch{}finally{capturing=false}
   }
   function ensure() {
     if(loaded)return loaded;
     popup=new BrowserWindow({parent,modal:false,title:'NOVA — меню',width:320,height:180,show:false,frame:false,transparent:true,backgroundColor:'#00000000',hasShadow:false,skipTaskbar:true,resizable:false,minimizable:false,maximizable:false,fullscreenable:false,webPreferences:{preload:path.join(__dirname,'menu-preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false,focusOnNavigation:false}});
     popup.webContents.on('will-navigate',event=>event.preventDefault());popup.webContents.setWindowOpenHandler(()=>({action:'deny'}));
-    popup.on('blur',()=>close(null,false));
+    popup.on('blur',()=>setImmediate(()=>{
+      if (!parent.isDestroyed() && !parent.isFocused() && !popup?.isFocused()) close(null,false);
+    }));
     popup.on('closed',()=>{close(null,false);popup=null;loaded=null});
     loaded=popup.loadFile(path.join(__dirname,'menu-window.html'));return loaded;
   }
@@ -54,7 +56,15 @@ function createNativeMenus({BrowserWindow,ipcMain,parent,getState,getView,onComm
   const ready=event=>{if(!own(event))throw Error('Unavailable');const state=getState();return {fonts,icons,theme:state.theme,motion:state.motion!==false}};
   const command=(event,message)=>{
     if(!own(event)||!current||message?.serial!==current.serial)return;
-    if(message.type==='painted'){position();popup.showInactive();if (!current.painted && current.model.focus) focus(current.model.id,current.model.focus);current.painted=true;if(!timer){timer=setInterval(frame,100);timer.unref?.();void frame()}return}
+    if(message.type==='painted') {
+      if (current.painted) return;
+      current.painted=true;
+      position();
+      popup.showInactive();
+      if (current.model.focus) focus(current.model.id,current.model.focus);
+      timer=setInterval(frame,100);timer.unref?.();void frame();
+      return;
+    }
     if (message.type === 'choose' && menuActionAllowed(current.model, message.value)) {
       const {model} = current;
       const keepOpen = model.variant === 'notices' && (model.headerAction?.value === message.value ||

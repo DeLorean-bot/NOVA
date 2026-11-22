@@ -1,5 +1,4 @@
 import { t } from './i18n'
-import { GlassSurface } from '@glass-sdk/liquid-glass'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { MoviePoster } from './MoviePoster'
@@ -40,7 +39,6 @@ export function FeedbackToast({ notice, title = notice?.movie.title, message, cl
   return createPortal(<div ref={popup} className="feedback-toast nl-feedback" popover="manual"
     onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)}
     onFocusCapture={() => setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false) }}>
-    <GlassSurface render={<span/>} className="notice-refraction" radius={16} material="clear" refraction={12} aria-hidden="true"/>
     <span className="feedback-toast-art" aria-hidden="true">{notice ? <MoviePoster movie={notice.movie} lazy={false} decorative/> : <Info size={18}/>}</span>
     <div className="feedback-toast-copy" role="status" aria-atomic="true">
       {title && <strong title={title}>{title}</strong>}

@@ -17,6 +17,7 @@ const { metadataEndpoint, metadataPage, catalogParams, filterCatalogPage, extern
 const { plotWords, findPlotMovies } = require('./plot-search.cjs');
 const { chromiumFetch } = require('./network.cjs');
 const { videoFacts, playedDelta, watchProgress } = require('./playback.cjs');
+const { castQuery, castCredits } = require('./cast-credits.cjs');
 const { createUpcoming } = require('./upcoming.cjs');
 const { releaseTransition, dismissReleaseNotices } = require('./releases.cjs');
 const { createRatings } = require('./ratings.cjs');
@@ -206,7 +207,7 @@ function tabState(t) {
     id: t.id, title: t.title, url: wc.getURL() || t.url, loading: wc.isLoading(),
     canBack: wc.navigationHistory.canGoBack(), canForward: wc.navigationHistory.canGoForward(),
     error: t.error || '', detected: contentInfo(wc.getURL()), kind: t.kind,
-    adblock: { enabled: t.adblockEnabled, blocked: t.blocked },
+    adblock: { enabled: true, blocked: t.blocked },
     movie: t.movie || null,
     playback: t.playback || null,
     providers: (t.providers || []).map(p => ({ name: p.name, translations: p.translations.map(x => ({ name: x.name, quality: x.quality })) })),
@@ -321,10 +322,18 @@ async function pollPlayback() {
     const elapsed = Math.min(10, (now - (tab.probedAt || now)) / 1000);
     const delta = playedDelta(previous, facts, elapsed);
     tab.probedAt = now; tab.playback = facts;
+    const item = state.history.find(m => m.id === tab.movie?.id);
     if (delta > 0 && tab.movie) {
-      const item = state.history.find(m => m.id === tab.movie.id);
       if (item) Object.assign(item, watchProgress(item, previous, facts, elapsed, now));
       if (item && now - lastProgressSave > 15000) { lastProgressSave = now; await save(); emit(); }
+    }
+    const finished = item && facts?.ended && !tab.finishOffered && (item.type === 'film'
+      ? item.completed : facts.scene.finalEpisode && (item.watchedSeconds || 0) >= 120);
+    if (finished && active === tab.id) {
+      tab.finishOffered = true;
+      item.completed = true;
+      if (win && !win.isDestroyed()) win.webContents.send('kadr:watch-finished', item);
+      await save(); emit();
     }
   } catch {} finally { pollingPlayback = false; }
 }
@@ -415,7 +424,7 @@ function activate(id) {
 function remoteTab({ title, url, kind = 'site', movie = null, providers = [], embedTrailer = true }) {
   const id = `tab-${nextTab++}`;
   const hostUrl = movie && ((kind === 'trailer' && embedTrailer) || (kind === 'player' && ['alloha', 'turbo', 'veoveo'].includes(providers[0]?.name.toLowerCase()))) ? `${SOURCE}/${movie.type}/${movie.id}/` : '';
-  const t = { id, title, url, hostUrl, targetUrl: url, kind, movie, providers, provider: 0, translation: -1, error: '', adblockEnabled: true, blocked: 0, recoveryAttempts: 0 };
+  const t = { id, title, url, hostUrl, targetUrl: url, kind, movie, providers, provider: 0, translation: -1, error: '', blocked: 0, recoveryAttempts: 0 };
   tabs.set(id, t);
   attachRemoteView(t);
   activate(id);
@@ -466,7 +475,7 @@ function attachRemoteView(t) {
   t.view = view;
   win.contentView.addChildView(view);
   const wc = view.webContents;
-  wc.on('focus',()=>nativeMenus?.close(null,false));
+  wc.on('before-mouse-event', (_event, input) => { if (input.type === 'mouseDown') nativeMenus?.close(null,false); });
   // Keep the renderer's UA and the network UA identical and ASCII-only.
   // Embedded CDN requests failed with the original app UA and succeeded
   // with a browser-compatible UA in the playback integration check.
@@ -493,7 +502,6 @@ function attachRemoteView(t) {
   wc.on('leave-html-full-screen', () => { t.htmlFullscreen = false; if (active === id && !fullscreenExit) exitFullscreen(); });
   wc.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) t.blocked = 0; });
   wc.on('did-frame-finish-load', (_event, _main, processId, routingId) => {
-    if (!t.adblockEnabled) return;
     try {
       const frame = webFrameMain.fromId(processId, routingId);
       if (!frame) return;
@@ -523,7 +531,7 @@ function attachRemoteView(t) {
   wc.on('will-redirect', (event, target) => { try { webUrl(target); } catch { event.preventDefault(); } });
   wc.setWindowOpenHandler(({ url: target }) => {
     // A link from a site remains an isolated site tab; player popups are not opened.
-    if (t.adblockEnabled && adblock.shouldBlock(target, 'subFrame', wc.getURL())) { t.blocked++; return { action: 'deny' }; }
+    if (adblock.shouldBlock(target, 'subFrame', wc.getURL())) { t.blocked++; return { action: 'deny' }; }
     if (kind !== 'player' && tabs.size < 10) {
       try { const valid = webUrl(target); setImmediate(() => remoteTab({ title: new URL(valid).hostname, url: valid })); } catch {}
     }
@@ -603,6 +611,33 @@ function registerHandlers() {
   });
   handle('catalog', catalog);
   handle('search', searchCatalog);
+  handle('scene', async () => {
+    const tab = tabs.get(active);
+    if (tab?.kind !== 'player') return null;
+    const facts = await videoFacts(tab.view.webContents).catch(() => null);
+    if (!facts || tab.id !== active || facts.duration <= 600) return null;
+    return { time: facts.time, actors: facts.scene.actors, music: facts.scene.music };
+  });
+  handle('finish-series', async input => {
+    const item = state.history.find(movie => movie.id === movieId(input) && movie.type === 'series');
+    if (!item) return;
+    item.completed = true;
+    await save(); emit();
+  });
+  const creditCache = new Map();
+  handle('cast-credits', async input => {
+    const id = movieId(input);
+    if (creditCache.has(id)) return creditCache.get(id);
+    const response = await chromiumFetch(`https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(castQuery(id))}`, {
+      headers: { Accept: 'application/sparql-results+json', 'User-Agent': 'NOVA (https://github.com/DeLorean-bot/NOVA)' },
+      signal: AbortSignal.timeout(6500),
+    });
+    if (!response.ok) return [];
+    const result = castCredits(await response.json());
+    if (creditCache.size >= 32) creditCache.delete(creditCache.keys().next().value);
+    creditCache.set(id, result);
+    return result;
+  });
   handle('browse', sourceBrowse);
   handle('recommendations', async refresh => ({ ...await recommendationCandidates(refresh), seen: state.taste.seen }));
   const feedbackUndo=new Map();let feedbackSequence=0;
@@ -689,12 +724,6 @@ function registerHandlers() {
     concealed = Boolean(value); layout(); syncEscapeShortcut();
     if (concealed && win && !win.isDestroyed()) win.webContents.focus();
     return poster;
-  });
-  handle('adblock', () => {
-    const t = tabs.get(active); if (!t) return;
-    t.adblockEnabled = !t.adblockEnabled;
-    t.blocked = 0;
-    t.view.webContents.reload(); emit();
   });
   handle('navigate', (action, address) => {
     if (action === 'external-url') return shell.openExternal(webUrl(address));
@@ -827,7 +856,7 @@ function preparePlayerSession() {
     playerSession.setUserAgent(app.userAgentFallback);
     playerSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (details, callback) => {
       const tab = [...tabs.values()].find(t => t.view.webContents.id === details.webContentsId);
-      if (!tab || !tab.adblockEnabled) { callback({ cancel: false }); return; }
+      if (!tab) { callback({ cancel: false }); return; }
       const documentUrl = details.frame?.url || details.referrer || tab.view.webContents.getURL() || tab.url;
       const blocked = adblock.shouldBlock(details.url, details.resourceType, documentUrl);
       callback({ cancel: blocked });
@@ -863,7 +892,7 @@ async function createWindow() {
     state.sidebarCollapsed = saved.sidebarCollapsed === true;
     state.preferredProvider = typeof saved.preferredProvider === 'string' ? saved.preferredProvider.slice(0, 100) : '';
     state.favorites = (saved.favorites || []).flatMap(m => { try { return [cleanMovie(m)]; } catch { return []; } });
-    state.history = (saved.history || []).flatMap(m => { try { return [{ ...cleanMovie(m), openedAt: String(m.openedAt || ''), watchedSeconds: Math.max(0, Math.min(1e8, Number(m.watchedSeconds) || 0)), lastWatchedAt: String(m.lastWatchedAt || ''), watchedDuration: Number(m.watchedDuration) > 600 && Number(m.watchedDuration) < 200000 ? Number(m.watchedDuration) : undefined, watchedRanges: (Array.isArray(m.watchedRanges) ? m.watchedRanges : []).filter(r => Array.isArray(r) && r.length === 2 && r.every(Number.isFinite) && r[0] >= 0 && r[1] > r[0] && r[1] < 200000).slice(-300), completed: m.type === 'film' && m.completed === true }]; } catch { return []; } }).slice(0, 80);
+    state.history = (saved.history || []).flatMap(m => { try { return [{ ...cleanMovie(m), openedAt: String(m.openedAt || ''), watchedSeconds: Math.max(0, Math.min(1e8, Number(m.watchedSeconds) || 0)), lastWatchedAt: String(m.lastWatchedAt || ''), watchedDuration: Number(m.watchedDuration) > 600 && Number(m.watchedDuration) < 200000 ? Number(m.watchedDuration) : undefined, watchedRanges: (Array.isArray(m.watchedRanges) ? m.watchedRanges : []).filter(r => Array.isArray(r) && r.length === 2 && r.every(Number.isFinite) && r[0] >= 0 && r[1] > r[0] && r[1] < 200000).slice(-300), completed: m.completed === true }]; } catch { return []; } }).slice(0, 80);
     state.releases = (saved.releases || []).flatMap(m => { try { return [{ ...cleanMovie(m), addedAt: String(m.addedAt || ''), available: typeof m.available === 'boolean' ? m.available : null, checkedAt: String(m.checkedAt || ''), availableAt: String(m.availableAt || ''), unread: m.unread === true, noticeDismissed: m.noticeDismissed === true }]; } catch { return []; } }).slice(0, 50);
     state.sites = (saved.sites || []).flatMap(s => { try { return [{ id: String(s.id), name: String(s.name).slice(0, 50), url: webUrl(s.url) }]; } catch { return []; } }).slice(0, 20);
   } catch {}

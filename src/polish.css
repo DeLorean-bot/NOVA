@@ -1,5 +1,5 @@
 /* Shared Neverlose-style material for navigation, selectors and feedback. */
-.control-menu { position: fixed; inset: auto; margin: 0; padding: 8px; width: 256px; max-width: calc(100vw - 24px); max-height: min(320px,calc(100dvh - 48px)); overflow: auto; border: 0; border-radius: 16px; color: var(--fg); background: var(--menu-glass); backdrop-filter: blur(14px) saturate(1.2); box-shadow: var(--nav-shadow); isolation: isolate; scrollbar-width: thin; scrollbar-color: var(--edge) transparent; }
+.control-menu { position: fixed; inset: auto; margin: 0; padding: 8px; width: 256px; max-width: calc(100vw - 24px); max-height: min(320px,calc(100dvh - 48px)); overflow: auto; border: 0; border-radius: 16px; color: var(--fg); background: var(--menu-glass); backdrop-filter: var(--menu-blur); box-shadow: var(--menu-shadow); isolation: isolate; scrollbar-width: thin; scrollbar-color: var(--edge) transparent; }
 .control-menu:popover-open { display: block; animation: control-menu-enter 180ms cubic-bezier(.25,1,.5,1); }
 .control-menu.lg-surface { border-radius: 16px !important; }
 .control-menu::backdrop { background: transparent; pointer-events: none; }
@@ -13,6 +13,7 @@
 .control-menu > button[aria-selected=true] > .material-symbol { color: #9bacff; }
 .app .select-trigger { border: 0; border-radius: 999px; background: var(--nav-glass); box-shadow: var(--nav-shadow); backdrop-filter: blur(12px); }
 .app .select-trigger:hover,.app .select-trigger[aria-expanded=true] { background: var(--pill-hover); }
+.provider-select .select-prefix { color: var(--muted); }
 .country-filter-count { color: var(--muted); font-variant-numeric: tabular-nums; }
 .country-filter:popover-open { display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
 .country-filter-search { display: flex; align-items: center; gap: 8px; padding: 8px; color: var(--secondary); }
@@ -94,12 +95,9 @@
 .header-notices :is(.notice-remove,.notice-clear):is(:hover,:focus-visible), .notice-menu-row:is(:hover,:focus-within) { background: var(--hover); }
 .notice-unread { position: absolute; right: 14px; bottom: 10px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); pointer-events: none; }
 @media (hover: none) { .header-notices .notice-remove { opacity: 1; } }
-.feedback-toast.nl-feedback { inset: auto 24px 24px auto; transform: none; width: 408px; max-width: calc(100vw - 48px); height: 72px; padding: 12px; gap: 0; border: 1px solid var(--edge); box-shadow: inset 0 1px 0 var(--material-sheen),0 8px 28px #0004; border-radius: 16px; }
+.feedback-toast.nl-feedback { inset: auto 24px 24px auto; transform: none; width: 408px; max-width: calc(100vw - 48px); height: 72px; padding: 12px; gap: 0; border: 0; box-shadow: var(--menu-shadow); border-radius: 16px; }
 .feedback-toast.nl-feedback { background: var(--menu-glass); backdrop-filter: var(--menu-blur); }
 .feedback-toast.nl-feedback:hover { background: var(--menu-glass-hover); }
-.notice-refraction.lg-surface { position: absolute; inset: 0; z-index: 0; pointer-events: none; border-radius: inherit; background: transparent; }
-.app[data-optics='fallback'] .notice-refraction.lg-surface { background: transparent; }
-.nl-feedback > :not(.notice-refraction) { position: relative; z-index: 1; }
 .feedback-toast.nl-feedback:popover-open { display: grid; grid-template-columns: 34px minmax(0,1fr) 76px 32px; column-gap: 8px; animation: feedback-enter 180ms var(--ease-menu); }
 .nl-feedback .feedback-toast-art { display: grid; place-items: center; width: 34px; height: 44px; }
 .nl-feedback .feedback-toast-copy { gap: 2px; }
@@ -148,7 +146,7 @@
 .poster-liquid-action .poster-liquid-lens.lg-surface { position: absolute; inset: 0; pointer-events: none; border-radius: 16px; background: transparent; visibility: visible; z-index: -1; }
 @media(prefers-reduced-transparency:reduce),(forced-colors:active) {
   .feedback-toast.nl-feedback, .feedback-toast.nl-feedback:hover { background: var(--panel); backdrop-filter: none; }
-  .poster-liquid-action .poster-liquid-lens, .notice-refraction.lg-surface { display: none; }
+  .poster-liquid-action .poster-liquid-lens { display: none; }
 }
 
 .app .header-players { display: flex; justify-content: center; align-items: center; width: 44px; height: 44px; padding: 0; gap: 0; flex: none; }

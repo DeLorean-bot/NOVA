@@ -29,7 +29,7 @@ NOVA — каталог фильмов и сериалов для Windows. По�
 
 ## Установка
 
-[Установщик 0.8.12](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.12/NOVA-Setup-0.8.12.exe) · [ZIP без установки](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.12/NOVA-0.8.12-win-x64.zip) · [Все релизы и контрольные суммы](https://github.com/DeLorean-bot/NOVA/releases)
+[Установщик 0.8.13](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.13/NOVA-Setup-0.8.13.exe) · [ZIP без установки](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.13/NOVA-0.8.13-win-x64.zip) · [Все релизы и контрольные суммы](https://github.com/DeLorean-bot/NOVA/releases)
 
 Установленная NOVA загружает изменившиеся блоки в фоне, когда доступна разностная загрузка. О новой версии сообщает уведомление, о готовности к установке — короткий звук. Прогресс и установка с перезапуском доступны из уведомления и в **Настройки → Обновления**. Portable-версия даёт ссылку на скачивание релиза.
 

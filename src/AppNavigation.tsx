@@ -1,10 +1,9 @@
 import { getLanguage, t } from './i18n'
-import { GlassSurface } from '@glass-sdk/liquid-glass'
 import { Select } from './Select'
 import { announceMenu } from './menu-layer'
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowDown, Bell, Clock3, User, X, ChevronDown, ChevronRight, Moon, Palette, Search, Settings, Sun } from './icons'
+import { ArrowDown, Bell, Clock3, User, X, ChevronDown, ChevronRight, Moon, Palette, Play, Search, Settings, Sun } from './icons'
 import { SelectionHighlight } from './SelectionHighlight'
 import { PRIMARY_SECTIONS, type NavigationGroup, type Section } from './navigation-model'
 import type { AppState, Movie } from './types'
@@ -26,6 +25,8 @@ export function AppNavigation({ state, group, instant, navigate, search, setting
   const header = useRef<HTMLElement>(null)
   useFloatingHeader(header)
   const nav = useRef<HTMLElement>(null), profile = useRef<HTMLButtonElement>(null), notices = useRef<HTMLButtonElement>(null), popup = useRef<HTMLDivElement>(null)
+  const parkedPlayer = !state.active ? state.tabs.find(tab => tab.kind === 'player') : undefined
+  const otherTabs = state.active ? [] : state.tabs.filter(tab => tab !== parkedPlayer)
   const [open, setOpen] = useState<'profile' | 'notices' | null>(null)
   const [menu, setMenu] = useState<'profile' | 'notices'>('profile')
   const [hover, setHover] = useState<{x:number;y:number;width:number;height:number}|null>(null)
@@ -113,7 +114,8 @@ export function AppNavigation({ state, group, instant, navigate, search, setting
       {(Object.entries(PRIMARY_SECTIONS) as [NavigationGroup, string][]).map(([key, label]) => <button key={key} data-selection-key={key} aria-current={group === key ? 'page' : undefined} onClick={e => navigate(key, e.detail === 0)}>{t(label)}</button>)}
     </nav>
     <div className="header-actions">
-      {state.tabs.length>0&&!state.active&&<Select label={t("Открытые плееры")} className="header-players" value="" onChange={value=>{if(value)activateTab(value)}} options={[{value:'',label:t("Открытые плееры")},...state.tabs.map(tab=>({value:tab.id,label:tab.title}))]}/>}
+      {parkedPlayer && <button className="header-return nav-pill" aria-label={t('Вернуться к просмотру «{0}»',parkedPlayer.title)} title={t('Вернуться к просмотру «{0}»',parkedPlayer.title)} onClick={()=>activateTab(parkedPlayer.id)}><Play size={18}/><span>{parkedPlayer.title}</span></button>}
+      {otherTabs.length>0&&<Select label={t("Открытые плееры")} className="header-players" value="" onChange={value=>{if(value)activateTab(value)}} options={[{value:'',label:t("Открытые плееры")},...otherTabs.map(tab=>({value:tab.id,label:tab.title}))]}/>}
       <button className="header-search global-search-launch" aria-label={t("Открыть поиск")} aria-description={t("Поиск · Ctrl L")} onClick={search}><Search size={18} /><span>{t("Поиск")}</span></button>
       {updateTitle && <button className="nav-round" aria-label={updateTitle} title={updateTitle} onClick={openUpdates}><ArrowDown size={18}/><span className="header-notice-dot" aria-hidden="true"/></button>}
       <button className="nav-round" ref={notices} aria-label={t("Уведомления о премьерах")}  aria-haspopup="menu" aria-expanded={open === 'notices'} aria-controls={open==='notices'&&!native.enabled?id:undefined} onClick={event => toggle('notices',event.detail===0)} onKeyDown={event=>menuKeys('notices',event)}><Bell size={18} />{hasUnread && <span className="header-notice-dot" />}</button>
@@ -128,7 +130,6 @@ export function AppNavigation({ state, group, instant, navigate, search, setting
       if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) { e.preventDefault(); buttons[e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : (index + (e.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]?.focus() }
     }}>
       <span className="header-menu-surface" aria-hidden="true"/>
-      {open === 'notices' && <GlassSurface render={<span/>} className="notice-refraction" radius={16} material="clear" refraction={12} aria-hidden="true"/>}
       <div className="header-menu-visual"><div className="header-menu-content" onPointerMove={event => { if(menu==='notices')return; const item = (event.target as Element).closest('button'); if (!item || item.matches(':disabled')) { setHover(null); return }; const r = item.getBoundingClientRect(), p = event.currentTarget.getBoundingClientRect(), top = r.y - p.y + event.currentTarget.scrollTop; setHover(old => old?.x===r.x-p.x && old?.y===top && old?.width===r.width && old?.height===r.height ? old : {x:r.x-p.x,y:top,width:r.width,height:r.height}) }} onPointerLeave={()=>setHover(null)} onFocusCapture={event => { if(menu==='notices'||document.documentElement.dataset.input!=='keyboard')return;const item=(event.target as Element).closest('button');if(!item)return;const r=item.getBoundingClientRect(),p=event.currentTarget.getBoundingClientRect();setHover({x:r.x-p.x,y:r.y-p.y,width:r.width,height:r.height}) }}><span className="header-menu-indicator" aria-hidden="true" style={{opacity:hover&&menu==='profile'?1:0,width:hover?.width??0,height:hover?.height??0,transform:`translate(${hover?.x??0}px,${hover?.y??0}px)`}}/>
       {menu === 'profile' ? <>
         <button role="menuitem" onClick={() => action(editProfile)}><User size={18}/><span>{t("Мой профиль")}</span></button>
@@ -196,6 +197,20 @@ export function FormatTabs({ value, change, instant }: { value: 'all'|'films'|'s
   return <div ref={root} className="format-tabs nav-pill" role="group" aria-label={t("Формат")} onKeyDown={pillKeys}>
     <SelectionHighlight container={root} axis="horizontal" value={value} instant={instant}/>
     {(['all','films','series'] as const).map(key=><button key={key} data-selection-key={key} aria-pressed={value===key} onClick={event=>change(key,event.detail===0)}>{key==='all'?t("Всё"):key==='films'?t("Фильмы"):t("Сериалы")}</button>)}
+  </div>
+}
+
+export type CatalogLayout = 'list' | 'grid'
+export function CatalogLayoutToggle({ value, change }: { value: CatalogLayout; change: (value: CatalogLayout) => void }) {
+  const root = useRef<HTMLDivElement>(null)
+  return <div ref={root} className="catalog-layout nav-pill" role="group" aria-label={t('Вид каталога')} onKeyDown={pillKeys}>
+    <SelectionHighlight container={root} axis="horizontal" value={value} />
+    {(['list', 'grid'] as const).map(mode => {
+      const label = t(mode === 'list' ? 'Списком' : 'Карточками')
+      return <button key={mode} type="button" data-selection-key={mode} aria-label={label} title={label} aria-pressed={mode === value} onClick={() => change(mode)}>
+        <span className={`catalog-layout-icon ${mode}`} aria-hidden="true" />
+      </button>
+    })}
   </div>
 }
 

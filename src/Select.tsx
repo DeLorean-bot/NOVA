@@ -9,7 +9,7 @@ import { MenuIcon } from './MenuIcon'
 import type { MenuIconName } from './types'
 
 export type Choice = { value: string; label: string; icon?:MenuIconName }
-export function Select({ value, options, onChange, label, className = '', typeahead = false }: { value: string; options: Choice[]; onChange: (value: string) => void; label: string; className?: string; typeahead?: boolean }) {
+export function Select({ value, options, onChange, label, className = '', typeahead = false, prefix, includeCurrent = false }: { value: string; options: Choice[]; onChange: (value: string) => void; label: string; className?: string; typeahead?: boolean; prefix?: string; includeCurrent?: boolean }) {
   const [open, setOpen] = useState(false), id = useId()
   const trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null)
   const focusMenu = useRef<'first'|'last'|null>(null)
@@ -29,7 +29,7 @@ export function Select({ value, options, onChange, label, className = '', typeah
     }
   }
   const selected = options.find(o => o.value === value)
-  const alternatives = options.filter(option=>option.value!==value)
+  const alternatives = includeCurrent ? options : options.filter(option=>option.value!==value)
   const finish = (focus=false) => {setOpen(false);if(focus)trigger.current?.focus({preventScroll:true})}
   const optionIcon = (option:Choice):MenuIconName|undefined=>option.icon||(label===t('Озвучка')?'Volume2':label===t('Плеер')?'Play':undefined)
   const native=useNativeMenu({open,id,label,anchor:trigger,width:Math.max(trigger.current?.offsetWidth||0,label===t('Озвучка')?300:200),focus:focusMenu.current,items:alternatives.map(option=>({...option,label:t(option.label),icon:optionIcon(option),checked:option.value===value})),action:next=>{if(options.some(option=>option.value===next))onChange(next)},close:finish})
@@ -72,11 +72,11 @@ export function Select({ value, options, onChange, label, className = '', typeah
     return()=>{document.removeEventListener('scroll',scroll,true);window.removeEventListener('resize',place);popup.hidePopover()}
   },[open,options.length,label,id,native.enabled])
   return <>
-    <button ref={trigger} type="button" role="combobox" aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={open&&!native.enabled?id:undefined} disabled={options.length<2} className={`select-trigger ${className}`} onClick={event=>{if(open)close();else{focusMenu.current=event.detail===0?'first':null;setOpen(true)}}} onKeyDown={event=>{
+    <button ref={trigger} type="button" role="combobox" aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={open&&!native.enabled?id:undefined} disabled={!alternatives.length} className={`select-trigger ${className}`} onClick={event=>{if(open)close();else{focusMenu.current=event.detail===0?'first':null;setOpen(true)}}} onKeyDown={event=>{
       findByYear(event)
       if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();focusMenu.current=event.key==='ArrowUp'?'last':'first';if(open&&native.enabled)native.focus(focusMenu.current);else if(open){const items=[...menu.current!.querySelectorAll<HTMLButtonElement>('[role=option]')];(focusMenu.current==='last'?items.at(-1):items[0])?.focus()}else setOpen(true)}
       if(event.key==='Escape'&&open){event.preventDefault();close(true)}
-    }}>{selected&&optionIcon(selected)&&<MenuIcon name={optionIcon(selected)!}/>}<span>{selected ? t(selected.label) : value}</span>{options.length>1&&<ChevronDown size={14}/>}</button>
+    }}>{prefix && <span className="select-prefix">{prefix}</span>}{selected&&optionIcon(selected)&&<MenuIcon name={optionIcon(selected)!}/>}<span>{selected ? t(selected.label) : value}</span>{alternatives.length > 0&&<ChevronDown size={14}/>}</button>
     {open&&!native.enabled&&createPortal(<div ref={menu} id={id} className="control-menu" popover="manual" role="listbox" aria-label={label} onKeyDown={event=>{
       findByYear(event)
       const buttons=[...menu.current!.querySelectorAll<HTMLButtonElement>('[role=option]')],index=buttons.indexOf(document.activeElement as HTMLButtonElement)

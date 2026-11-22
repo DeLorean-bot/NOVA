@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { searchMovies } = require('../src/search.ts');
-const { excludesCountry } = require('../src/catalog-regions.ts');
+const { excludesCountry, matchesRegions } = require('../src/catalog-regions.ts');
 const { findPlotMovies } = require('../electron/plot-search.cjs');
 const movies = [{ title: 'Гангстерленд', original: 'MobLand', year: 2025 }, { title: 'Ёлки', year: 2010 }, { title: 'Интерстеллар', original: 'Interstellar', year: 2014 }];
 test('search accepts Cyrillic, original titles and ё/е spelling', () => {
@@ -92,4 +92,14 @@ test('excluding countries hides co-productions with any chosen country and keeps
   assert.equal(excludesCountry('КНР', excluded), true);
   assert.equal(excludesCountry('Вьетнам, Франция', excluded), false);
   assert.equal(excludesCountry(undefined, excluded), false);
+});
+
+test('multiple regions include a title made in any selected region', () => {
+  const regions = ['europe', 'america'];
+  assert.equal(matchesRegions('Франция', regions), true);
+  assert.equal(matchesRegions('США', regions), true);
+  assert.equal(matchesRegions('Япония', regions), false);
+  assert.equal(matchesRegions('Китай, Франция', regions), true);
+  assert.equal(matchesRegions('Россия, Франция', ['without-cis']), false);
+  assert.equal(matchesRegions(undefined, []), true);
 });

@@ -1,9 +1,9 @@
-import { getLanguage, t } from './i18n'
+import { genreLabel, getLanguage, t } from './i18n'
 import { mergeMovieDetails, movieUnavailable } from './movie-availability'
 import { OpinionButtons } from './OpinionButtons'
 import { MoviePoster } from './MoviePoster'
 import { useEffect, useRef, useState } from 'react'
-import { Bell, Bookmark, Check, ExternalLink, Play, RotateCw, X } from './icons'
+import { Bell, Bookmark, Check, Clapperboard, ExternalLink, Play, RotateCw } from './icons'
 import type { Movie, TomatoRating } from './types'
 import './movie-details.css'
 import freshTomato from './assets/rotten-tomatoes.svg'
@@ -51,7 +51,7 @@ export default function MovieDetails({ initial, saved, followed, busy, close, wa
         <p className="detail-kicker">{[movie.type === 'series' ? t("Сериал") : t("Фильм"), upcoming?t("Премьера {0}", premiere):movie.year, movie.runtime && t("{0} мин", movie.runtime), movie.age && `${movie.age}+`].filter(Boolean).join(' · ')}</p>
         <h1 id="movie-detail-title" tabIndex={-1}>{movie.title}</h1>
         {movie.original && movie.original !== movie.title && <p className="detail-original">{movie.original}</p>}
-        {movie.genres.length > 0 && <p className="detail-genres">{movie.genres.map(genre => t(genre.toLowerCase())).join(' · ')}</p>}
+        {movie.genres.length > 0 && <ul className="detail-genres">{movie.genres.map(genre => <li key={genre}>{genreLabel(genre)}</li>)}</ul>}
         <div className="movie-ratings" aria-label={t("Рейтинги")}>
           {movie.rating !== null && <button className="movie-rating" onClick={() => openRating(`https://www.kinopoisk.ru/${movie.type}/${movie.id}/`)}><span className="kp-rating-logo">{t("КП")}</span><span><strong>{movie.rating.toFixed(1)}<small>/10</small></strong><em>{t("Кинопоиск")}</em></span></button>}
           {movie.imdbRating&&<button className="movie-rating" disabled={!movie.imdbId} onClick={() => openRating(`https://www.imdb.com/title/${movie.imdbId}/`)}><span className="imdb-rating-logo" aria-label="IMDb">IMDb</span><span><strong>{movie.imdbRating.toFixed(1)}<small>/10</small></strong><em>IMDb</em></span></button>}
@@ -63,15 +63,17 @@ export default function MovieDetails({ initial, saved, followed, busy, close, wa
             {busy ? <RotateCw size={18} className="spin"/> : unavailable ? <Bell size={20}/> : <Play size={20} fill="currentColor"/>}
             <span role={busy ? 'status' : undefined}>{busy ? t("Ищем доступные плееры") : unavailable ? followed ? t("Отслеживается") : upcoming ? t("Буду ждать") : t("Сообщить о появлении") : t("Смотреть")}</span>
           </button>
-          <button className="quiet-button" onClick={trailer} disabled={trailerBusy}>{trailerBusy ? <RotateCw size={19} className="spin" /> : <Play size={19} />}{movie.trailer ? t("Трейлер") : t("Трейлеры на Кинопоиске")}</button>
+          <button className="quiet-button" onClick={trailer} disabled={trailerBusy}>{trailerBusy ? <RotateCw size={19} className="spin" /> : <Clapperboard size={19} />}{movie.trailer ? t("Трейлер") : t("Трейлеры на Кинопоиске")}</button>
           <button className={`icon-button detail-save ${saved ? 'saved' : ''}`} aria-label={saved ? t("Убрать из коллекции") : t("В коллекцию")} aria-pressed={saved} onClick={() => favorite(movie)}>{saved ? <Check size={21} /> : <Bookmark size={21} />}</button>
         </div>
         <OpinionButtons movie={movie} taste={taste} rate={rate}/>
         <section className="detail-synopsis" aria-label={t("Описание")}><h2>{movie.type === 'series' ? t('О сериале') : t('О фильме')}</h2><p>{movie.description || (loading ? t("Загружаем описание…") : t("Описание пока не добавлено в источник."))}</p></section>
         {(movie.directors || movie.actors || movie.country) && <dl className="detail-credits">{movie.directors && <><dt>{t("Режиссёр")}</dt><dd>{movie.directors}</dd></>}{movie.actors && <><dt>{t("В ролях")}</dt><dd>{movie.actors}</dd></>}{movie.country && <><dt>{t("Страна")}</dt><dd>{movie.country}</dd></>}</dl>}
         {error && <p className="detail-load-error" role="alert">{t("Не удалось обновить сведения.")}<button className="text-button" onClick={() => retry(v => v + 1)}>{t("Повторить")}</button></p>}
-        {!unavailable&&<button className="text-button detail-follow" disabled={followed} onClick={() => follow(movie)}><Bell size={17} />{followed ? t("Вы ждёте этот релиз") : t("Сообщить о появлении")}</button>}
-        <button className="text-button detail-source" onClick={() => openRating(`https://www.kinopoisk.ru/${movie.type}/${movie.id}/`)}>{t("На Кинопоиске")}<ExternalLink size={14} /></button>
+        <div className="detail-links">
+          {!unavailable&&<button className="text-button" disabled={followed} onClick={() => follow(movie)}><Bell size={17} />{followed ? t("Вы ждёте этот релиз") : t("Сообщить о появлении")}</button>}
+          <button className="text-button" onClick={() => openRating(`https://www.kinopoisk.ru/${movie.type}/${movie.id}/`)}>{t("На Кинопоиске")}<ExternalLink size={14} /></button>
+        </div>
       </div>
     </div>
   </section>

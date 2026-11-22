@@ -44,6 +44,8 @@ export type FilmOpinion = 'like' | 'dislike' | 'hide' | 'reset'
 export type FeedbackNotice = { id:string;movie:Movie;message:string;undoToken?:string }
 export type Catalog = { movies: Movie[]; total: number; hasMore: boolean }
 export type SearchPhase = 'catalog' | 'description' | 'reviews' | 'matching'
+export type SceneInfo = { time: number; actors: string[]; music: string[] }
+export type CastCredit = { name: string; titles: { id: number; title: string }[] }
 export type API = {
   onMenuAction?(listener:(id:string,value:string)=>void):()=>void;
   openMenu?(model:NativeMenuModel):Promise<{value?:string;keyboard:boolean}>;updateMenu?(model:NativeMenuModel):Promise<void>;closeMenu?(id:string):Promise<void>;focusMenu?(id:string,edge:'first'|'last'):Promise<void>;
@@ -61,6 +63,10 @@ export type API = {
   onShowUpdates(listener: () => void): () => void;
   search(query: string, page?: number, requestId?: number): Promise<{ movies: Movie[]; nextPage: number | null }>;
   onSearchPhase(listener: (requestId: number, phase: SearchPhase) => void): () => void;
+  scene(): Promise<SceneInfo | null>;
+  castCredits(id: number): Promise<CastCredit[]>;
+  finishSeries(id: number): Promise<void>;
+  onWatchFinished(listener: (movie: Movie) => void): () => void;
   browse(type: 'films' | 'series', page?: number, options?: { year?: number; minYear?: number; order?: 'date' | 'year' }): Promise<{ movies: Movie[]; nextPage: number | null }>;
   recommendations(refresh?: boolean): Promise<{ movies: Movie[]; added: number; hasMore: boolean; seen: number[] }>;
   rateMovie(movie: Movie, action: FilmOpinion): Promise<void>;
@@ -77,7 +83,6 @@ export type API = {
   conceal(value: boolean): Promise<string | null>; navigate(action: string, address?: string): Promise<void>; watch(movie: Movie): Promise<string>;
   provider(index: number, translation: number): Promise<void>; favorite(movie: Movie): Promise<void>;
   addSite(name: string, url: string): Promise<void>; removeSite(id: string): Promise<void>; clearHistory(): Promise<void>;
-  adblock(): Promise<void>;
   followRelease(movie: Movie): Promise<void>; unfollowRelease(id: number): Promise<void>;
   checkReleases(): Promise<AppState>; readReleases(id?: number): Promise<void>; dismissReleaseNotices(ids: number[]): Promise<void>;
   updateProfile(patch: Partial<LocalProfile>): Promise<void>;

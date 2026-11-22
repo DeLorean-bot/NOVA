@@ -30,3 +30,8 @@ export function t(message: string, ...values: unknown[]) {
   const template = language === 'en' && Object.hasOwn(messages, message) ? messages[message] : message
   return template.replace(/\{(\d+)\}/g, (match, index) => Number(index) < values.length ? String(values[Number(index)]) : match)
 }
+
+export function genreLabel(genre: string) {
+  const label = t(genre.toLowerCase())
+  return label.slice(0, 1).toLocaleUpperCase(language) + label.slice(1)
+}

@@ -18,8 +18,9 @@
 .detail-kicker { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
 .detail-copy h1 { margin: 0; font-size: 36px; font-weight: 600; line-height: 40px; letter-spacing: -1.3px; }
 .detail-original { margin: 12px 0 0; color: var(--muted); font-size: 14px; }
-.detail-genres { margin: 18px 0 0; color: var(--secondary); font-size: 12px; }
-.movie-ratings { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 28px; }
+.detail-genres { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; padding: 0; list-style: none; color: var(--secondary); font-size: 12px; }
+.detail-genres li { padding: 4px 9px; border-radius: 999px; background: var(--hover); }
+.movie-ratings { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 24px; }
 .movie-ratings:empty { display: none; }
 .detail-main-actions { margin-top: 24px; }
 .movie-rating { display: flex; gap: 9px; align-items: center; text-align: left; color: var(--fg); border: 0; padding: 0; background: transparent; cursor: pointer; }
@@ -30,7 +31,7 @@
 .imdb-rating-logo { color: #111; background: #f5c518; font: 900 17px/1 Arial,sans-serif; letter-spacing: -.8px; border-radius: 4px; padding: 6px 4px; }
 .kp-rating-logo { color: #f60; font-size: 22px; font-weight: 700; font-style: italic; }
 .tomato-rating svg,.tomato-icon { width: 29px; height: 29px; flex-shrink: 0; object-fit: contain; }
-.detail-rating-note { min-height: 28px; margin: 12px 0 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.detail-rating-note { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .detail-main-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .detail-main-actions .primary-button,.detail-main-actions .quiet-button { min-height: 44px; padding: 8px 16px; font-size: 14px; border-radius: 999px; }
 .app .detail-main-actions .quiet-button,.app .detail-main-actions .detail-save { border-radius: 999px; background: var(--nav-glass); box-shadow: inset 0 0 0 1px var(--nav-line); backdrop-filter: var(--menu-blur); }
@@ -38,12 +39,14 @@
 @media(prefers-reduced-transparency:reduce),(forced-colors:active) {
   .app .detail-main-actions .quiet-button,.app .detail-main-actions .detail-save { backdrop-filter: none; background: var(--panel); }
 }
-.detail-synopsis { margin-top: 32px; }
-.detail-copy h2 { font-size: 16px; font-weight: 500; margin: 0 0 12px; }
-.detail-synopsis p { color: var(--secondary); font-size: 14px; line-height: 24px; margin: 0; white-space: pre-line; }
+.detail-synopsis { margin-top: 28px; max-width: 72ch; }
+.detail-copy h2 { font-size: 18px; font-weight: 600; margin: 0 0 10px; }
+.detail-synopsis p { color: var(--secondary); font-size: 14px; line-height: 24px; margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
 .detail-credits { display: grid; grid-template-columns: 82px minmax(0,1fr); gap: 12px 18px; margin: 24px 0; font-size: 12px; line-height: 1.7; }
 .detail-credits dt { color: var(--muted); }.detail-credits dd { margin: 0; color: var(--secondary); }
-.detail-load-error { font-size: 12px; color: var(--muted); }.detail-follow,.detail-source { font-size: 12px; margin-top: 20px; }.detail-source { margin-left: 16px; }
+.detail-load-error { font-size: 12px; color: var(--muted); }
+.detail-links { display: flex; gap: 8px 16px; flex-wrap: wrap; margin-top: 24px; }
+.detail-links .text-button { font-size: 12px; }
 @keyframes detail-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @media(max-width:1100px) { .movie-detail { padding: 38px; width: calc(100vw - 64px); }.movie-detail-grid { grid-template-columns: 210px minmax(0,1fr); gap: 28px; }.movie-ratings { gap: 17px; } }
 @media(prefers-reduced-motion:reduce) { .movie-detail { animation: none; } }

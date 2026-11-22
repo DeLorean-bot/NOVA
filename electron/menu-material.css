@@ -1,0 +1,16 @@
+:root {
+  --menu-glass: rgba(12,13,16,.62);
+  --menu-glass-hover: rgba(12,13,16,.67);
+  --menu-blur: blur(12px) saturate(1.28);
+  --menu-rim: #ffffff16;
+  --menu-drop-shadow: 0 3px 8px #0005;
+  --menu-shadow: inset 0 0 0 1px var(--menu-rim), var(--menu-drop-shadow);
+  --menu-solid: #17191d;
+}
+:root[data-theme='light'] {
+  --menu-glass: rgba(255,255,255,.72);
+  --menu-glass-hover: rgba(255,255,255,.77);
+  --menu-rim: #20202015;
+  --menu-drop-shadow: 0 3px 8px #1a243023;
+  --menu-solid: #fff;
+}

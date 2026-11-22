@@ -11,7 +11,6 @@
   --pill-hover: color-mix(in srgb,var(--nav-glass) 76%,rgba(120,120,128,.26));
   --pill-press: color-mix(in srgb,var(--nav-glass) 64%,rgba(120,120,128,.34));
   --tab-selected: rgba(120,120,128,.18); --header-fade: rgba(255,255,255,.92);
-  --menu-glass: rgba(255,255,255,.88); --menu-glass-hover: rgba(255,255,255,.92);
 }
 .app-header { position: absolute; inset: 32px 0 auto; z-index: 6; display: block; isolation: isolate; padding: 16px 20px; background: none; box-shadow: none; border: 0; pointer-events: none; }
 .app-header-row { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 1280px; height: 44px; margin-inline: auto; pointer-events: none; }

@@ -85,7 +85,7 @@ html, body { background: var(--canvas); color: var(--fg); }
 .hero-loading { border-radius: 16px; background: var(--raised); color: var(--muted); }
 .app .catalog-heading h2 { color: var(--fg); font-weight: 500; }
 .catalog-heading.overview-tools { justify-content: flex-end; }
-.catalog-tools, .catalog-heading p, .count-label { color: var(--muted); }
+.catalog-tools, .catalog-heading p { color: var(--muted); }
 .filterbar { gap: 16px; }
 .filter-tabs { gap: 4px; }
 .filter-tabs button { border-radius: 10px; color: var(--secondary); padding: 9px 16px; }
@@ -120,10 +120,6 @@ html, body { background: var(--canvas); color: var(--fg); }
 .tab-close:hover { background: var(--hover); }
 .remote-toolbar { background: var(--panel); border-color: var(--edge); gap: 12px; }
 .browser-address { color: var(--fg); background: var(--canvas); border-color: var(--edge); border-radius: 10px; }
-.provider-label { color: var(--secondary); }
-.adblock-toggle { color: var(--muted) !important; }
-.adblock-toggle.enabled { color: var(--positive) !important; }
-.adblock-toggle:hover { background: var(--hover); }
 .remote-error { color: var(--fg); background: var(--raised); }
 .modal-backdrop { background: #0b122066; }
 .modal { background: var(--panel); border-color: var(--edge); box-shadow: 0 24px 80px #12203b29; border-radius: 24px; }

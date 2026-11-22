@@ -1,7 +1,7 @@
 import { t } from './i18n'
 import { useDialogDismiss } from './useDialogDismiss'
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
-import { ArrowRight, Check, ChevronDown, Film, Search, Tv, X } from './icons'
+import { ArrowRight, Check, ChevronDown, ExternalLink, Film, Search, Tv, X } from './icons'
 import type { Movie, SearchPhase } from './types'
 import { MoviePoster } from './MoviePoster'
 import { isExternalTitleQuery } from './search'
@@ -79,6 +79,11 @@ export function SearchDialog({ query, change, movies, busy, phase, error, close,
               </button>)}
             </div>
             {!busy && !rows.length && !error && <p className="docs-search-message" role="status">{direct ? t("Нажмите Enter, чтобы открыть ссылку или ID.") : query.trim().length < 2 ? t("Введите хотя бы две буквы, ID или ссылку на фильм.") : t("Ничего не найдено по запросу «{0}».", query.trim())}</p>}
+            {!busy && !rows.length && !direct && query.trim().length >= 2 && !isExternalTitleQuery(query) && <button className="docs-search-all" type="button" onClick={() => {
+              const url = new URL('https://www.google.com/search')
+              url.searchParams.set('q', `${query.trim()} ${t('фильм или сериал')}`)
+              void window.kadr?.navigate('external-url', url.href)
+            }}>{t('Искать в Google')}<ExternalLink size={15}/></button>}
             <button className="docs-search-all" type="button" onClick={() => { if (direct) input.current?.form?.requestSubmit(); else allResults(format) }}>{direct ? t("Открыть ссылку или ID") : t("Все результаты")}<ArrowRight size={15}/></button>
           </div>}
         </div>

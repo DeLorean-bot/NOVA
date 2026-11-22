@@ -5,8 +5,8 @@ import { Check, ChevronDown, Search } from './icons'
 
 const quickCountries = ['CN', 'JP', 'KR']
 
-export function CountryFilter({ region, excluded, changeRegion, changeExcluded }: {
-  region: string; excluded: string[]; changeRegion: (region: string) => void; changeExcluded: (countries: string[]) => void
+export function CountryFilter({ regions, excluded, changeRegions, changeExcluded }: {
+  regions: string[]; excluded: string[]; changeRegions: (regions: string[]) => void; changeExcluded: (countries: string[]) => void
 }) {
   const id = useId()
   const trigger = useRef<HTMLButtonElement>(null)
@@ -17,8 +17,13 @@ export function CountryFilter({ region, excluded, changeRegion, changeExcluded }
     Number(quickCountries.includes(b.value)) - Number(quickCountries.includes(a.value))), [language])
   const term = query.trim().toLowerCase().replaceAll('ё', 'е')
   const visible = term ? options.filter(country => country.aliases.includes(term)) : options
-  const selected = t(regionOptions.find(option => option.value === region)?.label ?? 'Все страны')
+  const selected = regions.length > 1 ? t('Регионов: {0}', regions.length) : t(regionOptions.find(option => option.value === regions[0])?.label ?? 'Все страны')
   const title = t('Страны')
+  const toggleRegion = (value: string, checked: boolean) => {
+    if (value === 'all') changeRegions([])
+    else if (!checked) changeRegions(regions.filter(region => region !== value))
+    else changeRegions(value === 'without-cis' ? [value] : [...regions.filter(region => region !== 'without-cis'), value])
+  }
 
   return <>
     <button ref={trigger} className="select-trigger country-filter-trigger" type="button" popoverTarget={id}
@@ -58,7 +63,7 @@ export function CountryFilter({ region, excluded, changeRegion, changeExcluded }
           <div className="country-filter-regions">
             {regionOptions.map(option => <label key={option.value} className="country-filter-option">
               <span>{t(option.label)}</span>
-              <input type="radio" name={id} checked={region === option.value} onChange={() => changeRegion(option.value)} />
+              <input type="checkbox" checked={option.value === 'all' ? !regions.length : regions.includes(option.value)} onChange={event => toggleRegion(option.value, event.target.checked)} />
               <Check className="country-filter-mark" size={15}/>
             </label>)}
           </div>
