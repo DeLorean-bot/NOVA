@@ -44,7 +44,7 @@
       System::Call 'kernel32::GetProcAddress(p $NovaSetupModule, m "NovaShowSetup") p.r0'
       StrCpy $R7 -1
       ${If} $0 != 0
-        System::Call '::$0(w "$EXEPATH", w "${APP_FILENAME}", w R5, w R6, i $LANGUAGE, i R4, w "$PLUGINSDIR\nova-wordmark.png", w .R8, i ${NSIS_MAX_STRLEN}) i.R7'
+        System::Call '::$0(w "$EXEPATH", w "${APP_FILENAME}", w R5, w R6, i $LANGUAGE, i R4, w "$PLUGINSDIR\nova-wordmark.png", w "${VERSION}", w .R8, i ${NSIS_MAX_STRLEN}) i.R7'
       ${EndIf}
       System::Call 'kernel32::FreeLibrary(p $NovaSetupModule)'
 
