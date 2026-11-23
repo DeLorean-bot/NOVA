@@ -1,5 +1,6 @@
-const SOURCE = 'https://brogiro.cfd';
+const SOURCE = 'https://brogiro.top';
 const API = 'https://playcdnfb.top';
+const CONTENT_DOMAINS = new Set(['kinopoisk.ru', 'brogiro.top', 'brogiro.cfd', 'kinokino.vip']);
 
 function webUrl(value) {
   if (typeof value !== 'string' || value.length > 8192) throw new Error('Некорректный адрес');
@@ -13,8 +14,8 @@ function webUrl(value) {
 function contentInfo(value) {
   try {
     const url = new URL(value);
-    const host = url.hostname.toLowerCase();
-    if (!['kinopoisk.ru', 'www.kinopoisk.ru', 'brogiro.cfd', 'www.brogiro.cfd', 'kinokino.vip', 'www.kinokino.vip'].includes(host)) return null;
+    const host = url.hostname.replace(/^www\./, '');
+    if (!['https:', 'http:'].includes(url.protocol) || !CONTENT_DOMAINS.has(host)) return null;
     const match = url.pathname.match(/^\/(film|series)\/([1-9]\d{0,11})(?:\/|$)/);
     return match ? { type: match[1], id: Number(match[2]) } : null;
   } catch { return null; }

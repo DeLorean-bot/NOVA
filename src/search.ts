@@ -30,6 +30,17 @@ export function isExternalTitleQuery(query: string) {
     /^https?:\/\/(?:www\.)?(?:imdb\.com\/title\/tt\d{7,10}(?=[/?#]|$)|themoviedb\.org\/(?:movie|tv)\/[1-9]\d{0,11}(?=[-/?#]|$))/i.test(text)
 }
 
+const contentDomains = new Set(['kinopoisk.ru', 'brogiro.top', 'brogiro.cfd', 'kinokino.vip'])
+
+export function getContent(value: string) {
+  try {
+    const url = new URL(value)
+    if (!['https:', 'http:'].includes(url.protocol) || !contentDomains.has(url.hostname.replace(/^www\./, ''))) return null
+    const match = url.pathname.match(/^\/(film|series)\/([1-9]\d{0,11})(?:\/|$)/)
+    return match ? { type: match[1] as 'film' | 'series', id: Number(match[2]) } : null
+  } catch { return null }
+}
+
 export function searchMovies<T extends SearchMovie>(items: T[], query: string): T[] {
   const text = normalize(query)
   if (!text) return items

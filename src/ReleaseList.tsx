@@ -2,6 +2,7 @@ import { getLanguage, t } from './i18n'
 import { useState, type FormEvent } from 'react'
 import type { Movie, Release } from './types'
 import { Bell, Play, Plus, RotateCw, X } from './icons'
+import { getContent } from './search'
 
 export function ReleaseList({ items, follow, remove, check, watch }: { items: Release[]; follow: (m: Movie) => Promise<unknown>; remove: (id: number) => Promise<unknown>; check: () => Promise<unknown>; watch: (m: Movie) => void }) {
   const [link, setLink] = useState(''), [name, setName] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('')
@@ -9,7 +10,12 @@ export function ReleaseList({ items, follow, remove, check, watch }: { items: Re
     e.preventDefault(); setError('')
     const text = link.trim(); let id = /^\d+$/.test(text) ? Number(text) : 0, type: 'film' | 'series' = 'film'
     try {
-      if (!id) { const u = new URL(text), m = u.pathname.match(/^\/(film|series)\/(\d+)(?:\/|$)/); if (!['kinopoisk.ru', 'www.kinopoisk.ru', 'brogiro.cfd', 'www.brogiro.cfd'].includes(u.hostname) || !m) throw new Error(); id = Number(m[2]); type = m[1] as 'film' | 'series' }
+      if (!id) {
+        const content = getContent(text)
+        if (!content) throw new Error()
+        id = content.id
+        type = content.type
+      }
       if (!id || id > 999999999999) throw new Error()
     } catch { setError(t("Вставьте ссылку на фильм или сериал либо его ID Кинопоиска.")); return }
     setBusy(true)

@@ -61,7 +61,7 @@ const tabs = new Map(), knownMovies = new Map(), catalogCache = new Map();
 let active = null, concealed = false, nextTab = 1, concealRevision = 0;
 let metadataBase = '', metadataAt = 0;
 const searchCache = new Map(), metadataPending = new Map();
-let endpointPending;
+let endpointPending, blacklistPending;
 const recommendationCandidates = createRecommendationSource({ catalog, browse: sourceBrowse, profile: () => state, blocked: restrictions });
 let fullscreenExit = null, fullscreenRestore = null, fullscreenWanted = false;
 
@@ -364,6 +364,11 @@ async function checkReleases(force = false) {
 
 async function restrictions() {
   if (blacklist && Date.now() - blacklistTime < 60 * 60 * 1000) return blacklist;
+  blacklistPending ??= refreshRestrictions().finally(() => { blacklistPending = undefined; });
+  return blacklistPending;
+}
+
+async function refreshRestrictions() {
   try {
     blacklist = parseBlacklist(await fetchText(SOURCE + '/blacklist.js'));
     blacklistTime = Date.now();
@@ -376,10 +381,10 @@ async function restrictions() {
 
 async function catalog(type, page) {
   if (!['films', 'series'].includes(type) || !Number.isInteger(page) || page < 1 || page > 34) throw new Error('Некорректная страница каталога');
-  const blocked = await restrictions();
   const key = `${type}-${page}`;
   const cached = catalogCache.get(key);
   if (cached && Date.now() - cached.at < 15 * 60 * 1000) return cached.result;
+  const blocked = await restrictions();
   const body = JSON.parse(await fetchText(`${API}/api/popular?type=${type}&page=${page}`));
   if (!Array.isArray(body.data?.items)) throw new Error('Источник вернул неизвестный формат каталога');
   const movies = body.data.items.filter(item => !blocked.has(Number(item.id))).flatMap(item => {
@@ -421,9 +426,13 @@ function activate(id) {
   active = id; layout(); emit();
 }
 
+function providerHost(provider) {
+  return ['alloha', 'turbo', 'veoveo'].includes(provider?.name.toLowerCase()) ? `${SOURCE}/` : '';
+}
+
 function remoteTab({ title, url, kind = 'site', movie = null, providers = [], embedTrailer = true }) {
   const id = `tab-${nextTab++}`;
-  const hostUrl = movie && ((kind === 'trailer' && embedTrailer) || (kind === 'player' && ['alloha', 'turbo', 'veoveo'].includes(providers[0]?.name.toLowerCase()))) ? `${SOURCE}/${movie.type}/${movie.id}/` : '';
+  const hostUrl = kind === 'trailer' && embedTrailer ? `${SOURCE}/` : kind === 'player' ? providerHost(providers[0]) : '';
   const t = { id, title, url, hostUrl, targetUrl: url, kind, movie, providers, provider: 0, translation: -1, error: '', blocked: 0, recoveryAttempts: 0 };
   tabs.set(id, t);
   attachRemoteView(t);
@@ -433,7 +442,28 @@ function remoteTab({ title, url, kind = 'site', movie = null, providers = [], em
 }
 
 function loadRemote(t) {
-  t.view.webContents.loadURL(t.hostUrl || t.targetUrl, t.hostUrl ? undefined : t.kind === 'player' ? { httpReferrer: SOURCE + '/' } : undefined).catch(() => {});
+  const wc = t.view.webContents;
+  if (t.hostUrl && wc.getURL() === t.hostUrl && !wc.isLoadingMainFrame()) {
+    mountHostedEmbed(t, wc);
+    return;
+  }
+  wc.loadURL(t.hostUrl || t.targetUrl, t.hostUrl ? undefined : t.kind === 'player' ? { httpReferrer: SOURCE + '/' } : undefined).catch(() => {});
+}
+
+function mountHostedEmbed(tab, wc) {
+  // The source homepage supplies the iframe origin when individual movie routes
+  // are unavailable. Providers such as Alloha require that browser context.
+  wc.executeJavaScript(`(() => {
+    if (location.href !== ${JSON.stringify(tab.hostUrl)}) return;
+    const url = ${JSON.stringify(tab.targetUrl)};
+    const existing = document.getElementById('kadr-player-frame');
+    if (existing) { if (existing.src !== url) existing.src = url; return; }
+    const frame = document.createElement('iframe'); frame.id = 'kadr-player-frame';
+    frame.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture'; frame.allowFullscreen = true;
+    frame.referrerPolicy = 'strict-origin-when-cross-origin'; frame.src = url;
+    const style = document.createElement('style'); style.textContent = 'html,body{margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important;width:100%!important;height:100%!important}#kadr-player-frame{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;border:0!important;z-index:2147483647!important;display:block!important}';
+    document.head.appendChild(style); document.body.replaceChildren(frame);
+  })()`).catch(() => {});
 }
 
 function rebuildRemote(t) {
@@ -486,17 +516,7 @@ function attachRemoteView(t) {
   wc.on('did-navigate', notify);
   wc.on('did-navigate-in-page', notify);
   wc.on('dom-ready', () => {
-    if (!t.hostUrl || wc.getURL() !== t.hostUrl) return;
-    // Keep the source's real origin and browser iframe context. Alloha rejects
-    // top-level navigation even with a copied Referer header. Use the original
-    // page as host, replacing its catalogue/ads chrome with the selected embed.
-    wc.executeJavaScript(`(() => {
-      const frame = document.createElement('iframe'); frame.id = 'kadr-player-frame';
-      frame.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture'; frame.allowFullscreen = true;
-      frame.referrerPolicy = 'strict-origin-when-cross-origin'; frame.src = ${JSON.stringify(t.targetUrl)};
-      const style = document.createElement('style'); style.textContent = 'html,body{margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important;width:100%!important;height:100%!important}#kadr-player-frame{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;border:0!important;z-index:2147483647!important;display:block!important}';
-      document.head.appendChild(style); document.body.replaceChildren(frame);
-    })()`).catch(() => {});
+    if (t.hostUrl && wc.getURL() === t.hostUrl) mountHostedEmbed(t, wc);
   });
   wc.on('enter-html-full-screen', () => { t.htmlFullscreen = true; if (active === id) enterFullscreen(); });
   wc.on('leave-html-full-screen', () => { t.htmlFullscreen = false; if (active === id && !fullscreenExit) exitFullscreen(); });
@@ -737,7 +757,12 @@ function registerHandlers() {
       else { t.error = ''; wc.reload(); }
     }
     if (action === 'address') { t.error = ''; return wc.loadURL(webUrl(address)).catch(() => {}); }
-    if (action === 'external') return shell.openExternal(webUrl(wc.getURL() || t.url));
+    if (action === 'external') {
+      const destination = t.kind === 'player' && t.hostUrl && t.movie
+        ? `${SOURCE}/${t.movie.type}/${t.movie.id}/`
+        : wc.getURL() || t.url;
+      return shell.openExternal(webUrl(destination));
+    }
   });
   handle('watch', async input => {
     let movie = cleanMovie(input);
@@ -750,8 +775,8 @@ function registerHandlers() {
     if (!providers.length) throw new Error('Источник пока не нашёл плеер. Добавьте фильм в «Ожидаю», чтобы узнать о появлении.');
     await preparePlayerSession();
     const preferred = providers.findIndex(p => p.name.toLowerCase() === state.preferredProvider?.toLowerCase());
-    if (preferred > 0) providers.unshift(providers.splice(preferred, 1)[0]);
-    if (preferred < 0) { const verified = providers.findIndex(p => p.name.toLowerCase() === 'collaps'); if (verified > 0) providers.unshift(providers.splice(verified, 1)[0]); }
+    const initial = preferred >= 0 ? preferred : providers.findIndex(p => p.name.toLowerCase() === 'collaps');
+    if (initial > 0) providers.unshift(providers.splice(initial, 1)[0]);
     const previous = [...tabs.values()].find(t => t.kind === 'player');
     if (previous) closeTab(previous.id);
     if (tabs.size >= 10) throw new Error('Открыто 10 вкладок. Закройте одну из них.');
@@ -766,19 +791,17 @@ function registerHandlers() {
     const t = tabs.get(active);
     if (!t || t.kind !== 'player' || !Number.isInteger(provider) || !t.providers[provider]) throw new Error('Плеер не найден');
     const p = t.providers[provider];
-    clearTimeout(t.recoveryTimer); t.recoveryAttempts = 0;
     if (!Number.isInteger(translation) || translation < -1 || translation >= p.translations.length) throw new Error('Озвучка не найдена');
+    clearTimeout(t.recoveryTimer); t.recoveryAttempts = 0;
     t.provider = provider; t.translation = translation; t.error = ''; t.playback = null; t.probedAt = 0;
     const url = translation === -1 ? p.url : p.translations[translation].url;
     t.targetUrl = url;
-    t.hostUrl = ['alloha', 'turbo', 'veoveo'].includes(p.name.toLowerCase()) ? `${SOURCE}/${t.movie.type}/${t.movie.id}/` : '';
+    t.hostUrl = providerHost(p);
     state.preferredProvider = p.name;
     save().catch(() => {});
     const wc = t.view.webContents;
     if (t.recovering || wc.isCrashed()) { rebuildRemote(t); return; }
-    if (!t.hostUrl) wc.loadURL(url, { httpReferrer: SOURCE + '/' }).catch(() => {});
-    else if (wc.getURL() === t.hostUrl) wc.executeJavaScript(`(() => { const f = document.getElementById('kadr-player-frame'); if (f) f.src = ${JSON.stringify(url)}; else location.reload(); })()`).catch(() => {});
-    else wc.loadURL(t.hostUrl).catch(() => {});
+    loadRemote(t);
     emit();
   });
   handle('favorite', async input => {

@@ -2,7 +2,7 @@
 // adapter in the player's own JS world before its scripts initialize.
 const { contextBridge } = require('electron');
 contextBridge.executeInMainWorld({ func: () => {
-  if (location.hostname !== 'api.nextembed.ws') return;
+  if (!['api.nextembed.ws', 'api.embf.net'].includes(location.hostname)) return;
   let venom;
   let active;
   let changeRevision = 0;

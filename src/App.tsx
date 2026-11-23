@@ -15,7 +15,7 @@ import type { CatalogPosition } from './CatalogScene'
 import { useAppearance } from './useAppearance'
 import { version } from '../package.json'
 import { Select } from './Select'
-import { isExternalTitleQuery, mergeSearchResults } from './search'
+import { getContent, isExternalTitleQuery, mergeSearchResults } from './search'
 import { recommendations } from './recommendations'
 import { useRecommendations } from './useRecommendations'
 import { allowedSuggestion, EMPTY_TASTE } from './taste'
@@ -36,7 +36,7 @@ const MovieDetails = lazy(() => import('./MovieDetails'))
 const ProfilePage = lazy(() => import('./ProfilePage'))
 const CatalogScene = lazy(() => import('./CatalogScene'))
 
-const EMPTY: AppState = { profile: {name: 'Моя NOVA', avatar: ''}, favorites: [], history: [], releases: [], sites: [], tabs: [], active: null, source: 'https://brogiro.cfd', theme: window.kadr?.initialTheme || 'light', motion: window.kadr?.initialMotion !== false, glassBackground: window.kadr?.initialGlassBackground !== false, taste:EMPTY_TASTE, sidebarCollapsed: Boolean(window.kadr?.initialSidebarCollapsed), immersive: false, fullscreen: false }
+const EMPTY: AppState = { profile: {name: 'Моя NOVA', avatar: ''}, favorites: [], history: [], releases: [], sites: [], tabs: [], active: null, source: 'https://brogiro.top', theme: window.kadr?.initialTheme || 'light', motion: window.kadr?.initialMotion !== false, glassBackground: window.kadr?.initialGlassBackground !== false, taste:EMPTY_TASTE, sidebarCollapsed: Boolean(window.kadr?.initialSidebarCollapsed), immersive: false, fullscreen: false }
 const api = window.kadr
 const updateSound = new URL('./assets/update-ready.wav', import.meta.url).href
 const INITIAL_APPEARANCE = { theme: EMPTY.theme, motion: EMPTY.motion, glassBackground: EMPTY.glassBackground }
@@ -52,15 +52,6 @@ const BROWSE_EMPTY: BrowseState = { movies: [], nextPage: 1, loading: false, err
 function manualMovie(id: number, type: 'film' | 'series' = 'film', title = t("Кинопоиск · {0}", id)): Movie {
   return { id, type, title, original: '', year: null, poster: '', cover: '', rating: null, age: '', genres: [], description: '' }
 }
-function getContent(value: string) {
-  try {
-    const u = new URL(value)
-    if (!['kinopoisk.ru', 'www.kinopoisk.ru', 'brogiro.cfd', 'www.brogiro.cfd', 'kinokino.vip', 'www.kinokino.vip'].includes(u.hostname)) return null
-    const m = u.pathname.match(/^\/(film|series)\/(\d+)(?:\/|$)/)
-    return m ? { type: m[1] as 'film' | 'series', id: Number(m[2]) } : null
-  } catch { return null }
-}
-
 export default function App() {
   useInputModality()
   useLanguage()

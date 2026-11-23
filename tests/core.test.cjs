@@ -5,6 +5,7 @@ const { webUrl, contentInfo, movieId, parseBlacklist, normalizeMovie, normalizeP
 test('IDs are recognized only on supported exact hostnames and content paths', () => {
   assert.deepEqual(contentInfo('https://www.kinopoisk.ru/film/1143242/?x=1'), { type: 'film', id: 1143242 });
   assert.deepEqual(contentInfo('https://brogiro.cfd/series/464963'), { type: 'series', id: 464963 });
+  assert.deepEqual(contentInfo('https://brogiro.top/film/5582050/'), { type: 'film', id: 5582050 });
   for (const url of ['https://kinopoisk.ru.evil.test/film/42', 'https://evil.test/kinopoisk.ru/film/42', 'https://www.kinopoisk.ru/name/42/', 'not a url', 'https://kinopoisk.ru/film/0/']) assert.equal(contentInfo(url), null);
 });
 test('navigation rejects code, local files and URL credentials', () => {
