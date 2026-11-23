@@ -72,7 +72,7 @@ struct Setup {
     std::unique_ptr<Bitmap> frost;
     Page page{Page::Folder};
     UINT dpi{96};
-    bool russian{}, allUsers{}, animate{}, acrylic{}, checkRelease{}, updateUnavailable{};
+    bool russian{}, allUsers{}, animate{}, acrylic{}, progressGlass{}, checkRelease{}, updateUnavailable{};
     bool canExpand{}, expanded{}, initialExpanded{};
     ULONGLONG pageStart{}, expandStart{}, shownAt{};
     int viewWidth{Width}, viewHeight{Height};
@@ -106,6 +106,7 @@ struct Setup {
     const std::wstring &defaultPath() const { return allUsers ? machinePath : userPath; }
     bool busy() const { return page == Page::Installing || page == Page::Completing; }
     bool updating() const { return page == Page::Connecting || page == Page::Downloading; }
+    bool showingProgress() const { return page == Page::Downloading || busy(); }
     std::wstring status() const {
         if (page == Page::Connecting) return t(L"Connecting to server…", L"Подключение к серверу…");
         if (page == Page::Downloading) {
@@ -123,6 +124,7 @@ struct Setup {
     void resizeLauncher();
     void pollLayout();
     void captureFrost();
+    void updateProgressGlass();
     void render(HDC dc, bool glass = false) const;
     void drawFeed(HDC dc) const;
     void drawCaptionButton(Graphics &graphics, HWND button, RECT bounds) const;
@@ -334,6 +336,7 @@ void Setup::resizeLauncher() {
         expandStart = 0;
         expanded = targetExpansion == 1.0f;
         initialExpanded = initialExpanded || expanded;
+        if (!expanded) frost.reset();
         showPage(page);
         SetTimer(window, LayoutTimer, 80, nullptr);
     } else {
@@ -373,8 +376,16 @@ void Setup::captureFrost() {
         graphics.DrawImage(&pixels, Rect(0, 0, smallWidth, smallHeight), 0, header, width, height - header, UnitPixel);
     }
     Blur blur;
-    BlurParams parameters{static_cast<REAL>(px(8)), FALSE};
+    BlurParams parameters{static_cast<REAL>(px(16)), FALSE};
     if (blur.SetParameters(&parameters) == Ok && blurred->ApplyEffect(&blur, nullptr) == Ok) frost = std::move(blurred);
+}
+
+void Setup::updateProgressGlass() {
+    if (!acrylic || progressGlass == showingProgress()) return;
+    // Keep the title bar glass throughout the flow. Extend Acrylic underneath
+    // the compact status so its backdrop comes from DWM, never the old text.
+    const MARGINS inset = showingProgress() ? MARGINS{-1, -1, -1, -1} : MARGINS{0, 0, px(HeaderHeight), 0};
+    if (SUCCEEDED(DwmExtendFrameIntoClientArea(window, &inset))) progressGlass = showingProgress();
 }
 
 void Setup::render(HDC dc, bool glass) const {
@@ -383,7 +394,7 @@ void Setup::render(HDC dc, bool glass) const {
     FillRect(dc, &client, background);
     DeleteObject(background);
     RECT chip{};
-    const bool showFrost = frost && (page == Page::Downloading || busy());
+    const bool showFrost = frost && showingProgress() && expandStart;
     const std::wstring message = status();
     if (busy() || updating()) {
         SIZE measured{};
@@ -401,8 +412,7 @@ void Setup::render(HDC dc, bool glass) const {
         graphics.SetSmoothingMode(SmoothingModeAntiAlias);
         graphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);
         if (showFrost) {
-            const float fade = page == Page::Completing ? 1.0f - reveal() : 1.0f;
-            const float opacity = (0.30f + expansion * 0.33f) * fade;
+            const float opacity = 0.58f * expansion * expansion;
             const ColorMatrix matrix{{{1, 0, 0, 0, 0}, {0, 1, 0, 0, 0}, {0, 0, 1, 0, 0},
                                       {0, 0, 0, opacity, 0}, {0, 0, 0, 0, 1}}};
             ImageAttributes alpha;
@@ -549,6 +559,15 @@ void Setup::paint(HDC dc) const {
                 pixel = acrylic ? glassPixel(red, green, blue, markAlpha) : (red << 16) | (green << 8) | blue;
             }
         }
+        if (progressGlass) {
+            const float matte = 1.0f - expansion;
+            const auto alpha = static_cast<std::uint32_t>(255 - 74 * matte * matte * (1.0f - time));
+            for (int i = px(HeaderHeight) * width; i < width * height; ++i) {
+                const auto rgb = pixels[i];
+                pixels[i] = (alpha << 24) | ((((rgb >> 16) & 255) * alpha / 255) << 16) |
+                            ((((rgb >> 8) & 255) * alpha / 255) << 8) | ((rgb & 255) * alpha / 255);
+            }
+        }
     }
     BitBlt(dc, 0, 0, width, height, buffer.dc, 0, 0, SRCCOPY);
 }
@@ -582,6 +601,7 @@ void Setup::showPage(Page next) {
         pageStart = GetTickCount64();
     }
     page = next;
+    updateProgressGlass();
     const bool folder = page == Page::Folder && (!canExpand || expanded);
     ShowWindow(path, folder ? SW_SHOW : SW_HIDE);
     ShowWindow(browse, folder ? SW_SHOW : SW_HIDE);
