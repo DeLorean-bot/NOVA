@@ -1,7 +1,7 @@
 {
   "name": "kadr-desktop",
   "productName": "NOVA",
-  "version": "0.8.15",
+  "version": "0.8.16",
   "description": "Фильмы и сериалы в одном окне",
   "author": "NOVA",
   "private": true,
@@ -74,8 +74,6 @@
     "compression": "normal",
     "nsis": {
       "differentialPackage": "store-asar",
-      "installerHeader": "build/installer-header.bmp",
-      "installerSidebar": "build/installer-sidebar.bmp",
       "installerLanguages": [
         "en_US",
         "ru_RU"
