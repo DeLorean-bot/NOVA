@@ -1,46 +1,81 @@
-<p align="center"><a href="https://github.com/DeLorean-bot/NOVA/releases/latest"><img src="docs/nova-banner.png" width="960" alt="NOVA — каталог для Windows"></a></p>
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/nova-wordmark-dark.png">
+    <img src="docs/nova-wordmark-light.png" width="270" height="72" alt="NOVA">
+  </picture>
+</h1>
+
+<p align="center">Каталог фильмов и сериалов для Windows с открытым исходным кодом.</p>
 
 <p align="center">
-  <a href="https://github.com/DeLorean-bot/NOVA/releases/latest">Скачать</a> · <a href="#скриншоты">Скриншоты</a> · <a href="#статистика">Статистика</a> · <a href="docs/support.md">Поддержать</a> · <a href="README.md">English</a>
+  <a href="https://github.com/DeLorean-bot/NOVA/releases/latest"><img src="docs/download-ru.png" width="201" alt="Скачать NOVA для Windows"></a>
 </p>
 
-> [!NOTE]
-> NOVA ещё в разработке. Сейчас приложение доступно на Windows, а в будущем я планирую выпустить его и для других устройств. Буду рад вашим идеям, сообщениям об ошибках и поддержке проекта.
->
-> [Предложить функцию](https://github.com/DeLorean-bot/NOVA/issues/new?title=Feature%20request%3A%20) · [Сообщить об ошибке](https://github.com/DeLorean-bot/NOVA/issues/new?title=Bug%3A%20) · [Поддержать донатом](docs/support.md#поддержать-nova)
+<p align="center">
+  <a href="#установка">Установка и ZIP</a> · <a href="#скриншоты">Скриншоты</a> · <a href="#статистика-проекта">Статистика</a> · <a href="#участие-в-проекте">Участие в проекте</a> · <a href="docs/support.md#поддержать-nova">Поддержать NOVA</a> · <a href="README.md">English</a>
+</p>
 
-[![Главный экран NOVA в тёмной теме](docs/screenshots/overview-dark.png)](docs/screenshots/overview-dark.png)
-
-NOVA — каталог фильмов и сериалов для Windows. Подборки, поиск с фильтрами, рейтинги, трейлеры и личная медиатека в одном окне. По умолчанию язык интерфейса определяется по настройкам Windows. В **Настройки → Язык интерфейса** можно вручную выбрать русский или английский. Язык обложек, описаний и внешних плееров зависит от источника.
-
-## Скриншоты
-
-| Поиск | Настройки |
-| --- | --- |
-| [![Поиск в тёмной теме](docs/screenshots/search-dark.png)](docs/screenshots/search-dark.png) | [![Настройки в светлой теме](docs/screenshots/settings-light.png)](docs/screenshots/settings-light.png) |
-
-## Статистика
-
-[![Звёзды репозитория и скачивания сборок Windows](docs/activity/metrics.svg)](docs/activity/README.md)
-
-[Звёзды](https://github.com/DeLorean-bot/NOVA/stargazers) · [Релизы](https://github.com/DeLorean-bot/NOVA/releases) · [Данные по дням](docs/activity/history.json) · [Схема и график запуска](docs/architecture.md)
-
-Графики обновляются из GitHub. В скачивания входят установщики и архивы для Windows.
+[![Главная страница NOVA с подборкой и рекомендациями. Нажмите, чтобы увеличить.](docs/screenshots/overview-dark.png)](docs/screenshots/overview-dark.png)
 
 ## Установка
 
-[Установщик 0.8.14](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.14/NOVA-Setup-0.8.14.exe) · [ZIP без установки](https://github.com/DeLorean-bot/NOVA/releases/download/v0.8.14/NOVA-0.8.14-win-x64.zip) · [Все релизы и контрольные суммы](https://github.com/DeLorean-bot/NOVA/releases)
+Откройте [последний релиз для Windows x64](https://github.com/DeLorean-bot/NOVA/releases/latest) и выберите файл в разделе **Assets**.
 
-Установленная NOVA загружает изменившиеся блоки в фоне, когда доступна разностная загрузка. О новой версии сообщает уведомление, о готовности к установке — короткий звук. Прогресс и установка с перезапуском доступны из уведомления и в **Настройки → Обновления**. Portable-версия даёт ссылку на скачивание релиза.
+| Файл | Как запустить |
+| --- | --- |
+| **Установщик** · `NOVA-Setup-*.exe` | Запустите установщик и откройте NOVA из меню «Пуск». Приложение скачивает обновления в фоне и предлагает перезапуск для установки. |
+| **ZIP без установки** · `NOVA-*-win-x64.zip` | Распакуйте весь архив и запустите `NOVA.exe`. Переносная версия предложит открыть страницу нового релиза. |
 
-Для запуска из ZIP распакуйте архив целиком и откройте `NOVA.exe`. Поиск открывается по **Ctrl+L**, полный экран плеера — по **F**, полный экран приложения — по **F11**.
+NOVA по умолчанию использует язык Windows. Русский и английский можно выбрать вручную в **Настройки → Язык интерфейса**. Язык обложек и описаний зависит от источника.
 
-## Сборка
+[История релизов и контрольные суммы](https://github.com/DeLorean-bot/NOVA/releases) · [Статус сборки Windows](https://github.com/DeLorean-bot/NOVA/actions/workflows/ci.yml)
 
-На Windows с Node.js 24 выполните `npm ci`, затем `npm start`. Для проверки запустите `npm run check`, `npm run build` и `npm test`. Установщик и ZIP собираются командой `npm run dist`.
+## Скриншоты
 
-## Поддержка и лицензия
+| Поиск в тёмной теме | Карточка фильма в светлой теме |
+| --- | --- |
+| [![Результаты поиска поверх главной](docs/screenshots/search-dark.png)](docs/screenshots/search-dark.png) | [![Постер, оценки и кнопки просмотра](docs/screenshots/details-light.png)](docs/screenshots/details-light.png) |
 
-[Поддержать NOVA](docs/support.md#поддержать-nova) · [Сообщить о проблеме](https://github.com/DeLorean-bot/NOVA/issues/new)
+Скриншоты сделаны в отдельном профиле с демонстрационной подборкой. Права на постеры и кадры принадлежат их владельцам.
 
-[GPL-3.0-only](LICENSE) разрешает изучать, изменять и распространять приложение на условиях лицензии. [Лицензии сторонних компонентов](THIRD_PARTY_NOTICES.md)
+- **Найдите фильм** по названию, актёру или детали сюжета. В каталоге можно отфильтровать результаты по году, жанру и стране.
+- **Выберите, что посмотреть** с помощью трейлеров, рейтингов, персональных рекомендаций и календаря премьер.
+- **Вернитесь к просмотру** через карточку открытого фильма с обложкой. Коллекция, оценки и история хранятся локально.
+
+<details>
+<summary>Горячие клавиши</summary>
+
+| Клавиши | Действие |
+| --- | --- |
+| <kbd>Ctrl</kbd> + <kbd>L</kbd> | Открыть поиск |
+| <kbd>F</kbd> | Переключить полный экран плеера |
+| <kbd>F11</kbd> | Переключить полный экран приложения |
+| <kbd>Esc</kbd> | Закрыть панель или выйти из полного экрана |
+
+</details>
+
+## Статистика проекта
+
+[![График звёзд GitHub и скачиваний сборок для Windows](docs/activity/metrics.svg)](docs/activity/README.md)
+
+График строится по ежедневным замерам GitHub. В скачиваниях учитываются установщик и ZIP для Windows. [Данные по дням](docs/activity/history.json) · [Кто поставил звезду](https://github.com/DeLorean-bot/NOVA/stargazers)
+
+## Участие в проекте
+
+NOVA развивается. Сейчас приложение доступно на Windows, в будущем планируется поддержка других устройств. [Сообщить об ошибке](https://github.com/DeLorean-bot/NOVA/issues/new?template=bug.yml) · [Предложить функцию](https://github.com/DeLorean-bot/NOVA/issues/new?template=feature.yml) · [Поддержать разработку](docs/support.md#поддержать-nova)
+
+<details>
+<summary>Собрать из исходников на Windows</summary>
+
+Установите Node.js 24 и выполните в корне репозитория.
+
+```powershell
+npm ci
+npm start
+```
+
+Перед открытием pull request выполните `npm run check`, `npm run build` и `npm test`. Установщик и ZIP собираются через `npm run dist`. [Архитектура и замеры запуска](docs/architecture.md) · [Английский перевод](electron/locales/en.json)
+
+</details>
+
+NOVA распространяется под лицензией [GPL-3.0-only](LICENSE). [Лицензии сторонних компонентов](THIRD_PARTY_NOTICES.md)

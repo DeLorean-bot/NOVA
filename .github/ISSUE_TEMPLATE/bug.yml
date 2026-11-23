@@ -1,0 +1,23 @@
+name: Bug report / Ошибка
+description: Report something that went wrong in NOVA · Сообщите, что сломалось
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: NOVA version / Версия NOVA
+      placeholder: '0.8.14'
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened? / Что произошло?
+      description: Include what you expected and the steps to reproduce it. Опишите ожидаемый результат и шаги для повторения.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Screenshots and context / Скриншоты и подробности
+      description: If relevant, include the Windows version, theme, title or player. Если важно, укажите версию Windows, тему, название фильма или плеер.

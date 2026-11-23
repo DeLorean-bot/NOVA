@@ -1,0 +1,18 @@
+name: Feature request / Идея
+description: Suggest an improvement to NOVA · Предложите улучшение
+labels: [enhancement]
+body:
+  - type: textarea
+    id: use-case
+    attributes:
+      label: What are you trying to do? / Что вы хотите сделать?
+      description: Describe the situation where NOVA could help. Опишите ситуацию, в которой могла бы помочь NOVA.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would help? / Что бы помогло?
+      description: Describe the change you would like to see. Расскажите, что можно изменить.
+    validations:
+      required: true

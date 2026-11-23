@@ -1,4 +1,4 @@
-<p><a href="../README.md"><img src="nova-banner.png" width="760" alt="NOVA"></a></p>
+<p><a href="../README.md"><picture><source media="(prefers-color-scheme: dark)" srcset="nova-wordmark-dark.png"><img src="nova-wordmark-light.png" width="180" alt="NOVA home"></picture></a></p>
 
 # Support NOVA
 
@@ -60,4 +60,4 @@ UQBNXfVvcB-OGAd-3CfqPAMjtlx_tzi1-o4WdJV4q34f4-gd
 BzVDacu4LT4Jt4e8u1Vkw1VwPXSPWnDNSuufEtr9ZaA3
 ```
 
-[Поставить звезду на GitHub](https://github.com/DeLorean-bot/NOVA) · [Сообщить о проблеме](https://github.com/DeLorean-bot/NOVA/issues/new)
+[Star NOVA / Поставить звезду](https://github.com/DeLorean-bot/NOVA) · [Report a bug / Сообщить об ошибке](https://github.com/DeLorean-bot/NOVA/issues/new?template=bug.yml)
