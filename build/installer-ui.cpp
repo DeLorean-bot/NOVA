@@ -1,4 +1,5 @@
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <windows.h>
 #include <windowsx.h>
 #include <dwmapi.h>
@@ -7,6 +8,8 @@
 #include <shlwapi.h>
 #include <gdiplus.h>
 #include <tlhelp32.h>
+#include <algorithm>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -18,13 +21,14 @@
 namespace {
 using namespace Gdiplus;
 
-constexpr COLORREF Canvas = RGB(15, 16, 21);
-constexpr COLORREF Field = RGB(26, 28, 36);
-constexpr COLORREF Border = RGB(54, 58, 72);
-constexpr COLORREF Text = RGB(246, 247, 252);
-constexpr COLORREF Muted = RGB(171, 177, 194);
-constexpr COLORREF Blue = RGB(66, 105, 228);
-constexpr int Width = 680, Height = 430, Sidebar = 190;
+constexpr COLORREF Canvas = RGB(15, 16, 20);
+constexpr ARGB Panel = 0xff16181f;
+constexpr COLORREF Field = RGB(26, 28, 35);
+constexpr COLORREF Border = RGB(48, 51, 62);
+constexpr COLORREF Text = RGB(244, 245, 250);
+constexpr COLORREF Muted = RGB(166, 173, 189);
+constexpr COLORREF Blue = RGB(55, 92, 213);
+constexpr int Width = 640, Height = 344, Sidebar = 176, Content = 204, ContentWidth = 408;
 constexpr UINT_PTR Timer = 1;
 // The NSIS engine returns this after registering a manual installation.
 constexpr DWORD ManualInstallComplete = 73;
@@ -58,7 +62,7 @@ struct Setup {
     Image *logo{};
     Page page{Page::Folder};
     UINT dpi{96};
-    bool russian{}, allUsers{}, animate{};
+    bool russian{}, allUsers{}, animate{}, acrylic{};
     int phase{}, result{-1};
 
     const wchar_t *t(const wchar_t *english, const wchar_t *russianText) const {
@@ -86,7 +90,8 @@ struct Setup {
     const std::wstring &defaultPath() const { return allUsers ? machinePath : userPath; }
 
     void createControls();
-    void render(HDC dc) const;
+    void render(HDC dc, bool glass = false) const;
+    void paint(HDC dc) const;
     void drawButton(const DRAWITEMSTRUCT &buttonInfo) const;
     void showPage(Page next);
     void chooseFolder();
@@ -94,6 +99,28 @@ struct Setup {
     void poll();
     void command(int id);
 };
+
+bool applyAcrylic(HWND window, int sidebarWidth) {
+    HIGHCONTRASTW contrast{sizeof(contrast)};
+    if (SystemParametersInfoW(SPI_GETHIGHCONTRAST, sizeof(contrast), &contrast, 0) &&
+        (contrast.dwFlags & HCF_HIGHCONTRASTON)) return false;
+
+    DWORD transparency = 1, size = sizeof(transparency);
+    RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                 L"EnableTransparency", RRF_RT_REG_DWORD, nullptr, &transparency, &size);
+    if (!transparency) return false;
+
+    const BOOL dark = TRUE;
+    DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark, sizeof(dark));
+    const DWM_SYSTEMBACKDROP_TYPE backdrop = DWMSBT_TRANSIENTWINDOW;
+    if (FAILED(DwmSetWindowAttribute(window, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop, sizeof(backdrop)))) return false;
+    const MARGINS margins{sidebarWidth, 0, 0, 0};
+    if (SUCCEEDED(DwmExtendFrameIntoClientArea(window, &margins))) return true;
+
+    const DWM_SYSTEMBACKDROP_TYPE none = DWMSBT_NONE;
+    DwmSetWindowAttribute(window, DWMWA_SYSTEMBACKDROP_TYPE, &none, sizeof(none));
+    return false;
+}
 
 void roundFill(Graphics &graphics, const RECT &bounds, int radius, COLORREF color, COLORREF outline) {
     const REAL x = static_cast<REAL>(bounds.left), y = static_cast<REAL>(bounds.top);
@@ -121,27 +148,27 @@ void write(HDC dc, RECT box, HFONT font, COLORREF color, const wchar_t *text, UI
 }
 
 void Setup::createControls() {
-    font = makeFont(15, FW_NORMAL);
-    title = makeFont(34, FW_BOLD);
-    label = makeFont(15, FW_SEMIBOLD);
+    font = makeFont(14, FW_NORMAL);
+    title = makeFont(28, FW_SEMIBOLD);
+    label = makeFont(14, FW_SEMIBOLD);
     field = CreateSolidBrush(Field);
-    close = button(Close, 628, 16, 34, 34);
+    close = button(Close, 592, 16, 32, 32);
     SetWindowTextW(close, t(L"Close", L"Закрыть"));
     path = CreateWindowW(L"EDIT", defaultPath().c_str(), WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL,
-                         px(228), px(214), px(290), px(23), window,
+                         px(Content + 12), px(140), px(296), px(20), window,
                          nullptr, module, nullptr);
     SendMessageW(path, WM_SETFONT, reinterpret_cast<WPARAM>(font), FALSE);
     SendMessageW(path, EM_SETLIMITTEXT, 240, 0);
-    browse = button(Browse, 535, 200, 110, 47);
+    browse = button(Browse, 532, 128, 80, 44);
     SetWindowTextW(browse, t(L"Browse", L"Обзор"));
-    scope = button(Scope, 222, 256, 200, 40);
-    primary = button(Primary, 479, 352, 166, 48);
-    finish = button(Finish, 358, 352, 110, 48);
-    SetWindowTextW(finish, t(L"Done", L"Готово"));
+    scope = button(Scope, Content, 188, 188, 40);
+    primary = button(Primary, 464, 272, 148, 44);
+    finish = button(Finish, 360, 272, 92, 44);
+    SetWindowTextW(finish, t(L"Close", L"Закрыть"));
     showPage(Page::Folder);
 }
 
-void Setup::render(HDC dc) const {
+void Setup::render(HDC dc, bool glass) const {
     const RECT client = rect(0, 0, Width, Height);
     HBRUSH background = CreateSolidBrush(Canvas);
     FillRect(dc, &client, background);
@@ -151,47 +178,75 @@ void Setup::render(HDC dc) const {
         graphics.SetSmoothingMode(SmoothingModeAntiAlias);
         graphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);
         const Rect panel(0, 0, px(Sidebar), px(Height));
-        LinearGradientBrush fill(panel, Color(12, 13, 18), Color(21, 31, 66), LinearGradientModeVertical);
+        SolidBrush fill(glass ? Color(0, 0, 0) : Color(Panel));
         graphics.FillRectangle(&fill, panel);
-        graphics.SetClip(panel);
-        Pen ring(Color(115, 68, 110, 230), static_cast<REAL>(px(1)));
-        for (int offset : {0, 22, 45}) {
-            graphics.DrawEllipse(&ring, px(20 + offset), px(268 + offset), px(310), px(230));
-        }
-        if (logo && logo->GetLastStatus() == Ok) graphics.DrawImage(logo, Rect(px(24), px(42), px(142), px(38)));
-        graphics.ResetClip();
-        Pen divider(Color(40, 44, 59));
-        graphics.DrawLine(&divider, px(Sidebar), 0, px(Sidebar), px(Height));
-        graphics.DrawLine(&divider, px(222), px(326), px(645), px(326));
+        if (logo && logo->GetLastStatus() == Ok) graphics.DrawImage(logo, Rect(px(24), px(40), px(128), px(34)));
         if (page == Page::Folder) {
-            roundFill(graphics, rect(222, 200, 303, 47), px(10), Field, GetFocus() == path ? Blue : Border);
+            roundFill(graphics, rect(Content, 128, 316, 44), px(10), Field, GetFocus() == path ? Blue : Border);
         } else if (page == Page::Installing) {
-            roundFill(graphics, rect(222, 215, 423, 8), px(4), Field, Field);
-            const int left = 223 + (animate ? phase : 0);
-            roundFill(graphics, rect(left, 216, 105, 6), px(3), Blue, Blue);
+            roundFill(graphics, rect(Content, 176, ContentWidth, 6), px(3), Field, Field);
+            const int left = std::max(0, phase - 104);
+            const int right = std::min(phase + (animate ? 0 : 104), ContentWidth);
+            if (right - left >= 8) roundFill(graphics, rect(Content + left, 176, right - left, 6), px(3), Blue, Blue);
         }
     }
 
-    const wchar_t *heading = t(L"Install NOVA", L"Установка NOVA");
-    const wchar_t *description = t(L"Choose where to install the app.", L"Выберите папку для приложения.");
+    const wchar_t *heading = t(L"Installation folder", L"Папка установки");
     if (page == Page::Installing) {
-        heading = t(L"Installing NOVA", L"Устанавливаем NOVA");
-        description = t(L"Copying the app files. This may take a moment.", L"Копируем файлы приложения. Это может занять немного времени.");
+        heading = t(L"Installing…", L"Установка…");
     } else if (page == Page::Ready) {
-        heading = t(L"NOVA is ready", L"NOVA готова");
-        description = t(L"Open NOVA now or find it in your Start menu.", L"Откройте NOVA сейчас или позже через меню «Пуск».");
+        heading = t(L"Ready", L"Готово");
     } else if (page == Page::Failed) {
         heading = t(L"Setup stopped", L"Установка прервалась");
-        description = t(L"Check the installation folder and try again.", L"Проверьте папку установки и попробуйте ещё раз.");
+        write(dc, rect(Content, 168, ContentWidth, 52), font, Muted,
+              t(L"Check the installation folder.", L"Проверьте папку установки"), DT_WORDBREAK);
     }
-    write(dc, rect(219, 75, 425, 50), title, Text, heading, DT_SINGLELINE | DT_VCENTER);
-    write(dc, rect(222, 131, 420, 52), font, Muted, description, DT_WORDBREAK);
-    if (page == Page::Folder) {
-        write(dc, rect(222, 175, 420, 22), label, Text, t(L"Installation folder", L"Папка установки"), DT_SINGLELINE);
-        if (!pathError.empty()) {
-            write(dc, rect(222, 301, 420, 22), font, RGB(255, 164, 157), pathError.c_str(), DT_SINGLELINE);
+    const int titleY = page == Page::Folder ? 72 : 116;
+    write(dc, rect(Content, titleY, ContentWidth, 40), title, Text, heading, DT_SINGLELINE | DT_VCENTER);
+    if (page == Page::Folder && !pathError.empty()) {
+        write(dc, rect(Content, 236, ContentWidth, 24), font, RGB(255, 164, 157), pathError.c_str(), DT_SINGLELINE);
+    }
+}
+
+void Setup::paint(HDC dc) const {
+    const int width = px(Width), height = px(Height);
+    BITMAPINFO info{};
+    info.bmiHeader.biSize = sizeof(info.bmiHeader);
+    info.bmiHeader.biWidth = width;
+    info.bmiHeader.biHeight = -height;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    void *bits{};
+    HDC buffer = CreateCompatibleDC(dc);
+    HBITMAP surface = CreateDIBSection(dc, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
+    if (!buffer || !surface) {
+        if (surface) DeleteObject(surface);
+        if (buffer) DeleteDC(buffer);
+        render(dc);
+        return;
+    }
+    HGDIOBJ previous = SelectObject(buffer, surface);
+    render(buffer, acrylic);
+    if (acrylic) {
+        GdiFlush();
+        auto *pixels = static_cast<std::uint32_t *>(bits);
+        const int sidebarWidth = px(Sidebar);
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < sidebarWidth; ++x) {
+                auto &pixel = pixels[y * width + x];
+                // Composite the mark over the same dark tint as NOVA's glass menus.
+                const auto red = (pixel >> 16) & 255, green = (pixel >> 8) & 255, blue = pixel & 255;
+                const auto markAlpha = std::max({red, green, blue});
+                const auto tintAlpha = 158 * (255 - markAlpha) / 255;
+                pixel = ((markAlpha + tintAlpha) << 24) | ((red + 12 * tintAlpha / 255) << 16) |
+                        ((green + 13 * tintAlpha / 255) << 8) | (blue + 16 * tintAlpha / 255);
+            }
         }
     }
+    BitBlt(dc, 0, 0, width, height, buffer, 0, 0, SRCCOPY);
+    SelectObject(buffer, previous);
+    DeleteObject(surface);
+    DeleteDC(buffer);
 }
 
 void Setup::drawButton(const DRAWITEMSTRUCT &info) const {
@@ -203,7 +258,7 @@ void Setup::drawButton(const DRAWITEMSTRUCT &info) const {
     {
         Graphics graphics(info.hDC);
         graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-        graphics.Clear(Color(15, 16, 21));
+        graphics.Clear(Color(15, 16, 20));
         if (info.CtlID == Close) {
             const REAL x = static_cast<REAL>(info.rcItem.right) / 2;
             const REAL y = static_cast<REAL>(info.rcItem.bottom) / 2;
@@ -227,11 +282,11 @@ void Setup::showPage(Page next) {
     ShowWindow(path, folder ? SW_SHOW : SW_HIDE);
     ShowWindow(browse, folder ? SW_SHOW : SW_HIDE);
     ShowWindow(scope, folder && !machinePath.empty() ? SW_SHOW : SW_HIDE);
-    ShowWindow(close, busy ? SW_HIDE : SW_SHOW);
+    ShowWindow(close, busy || page == Page::Ready ? SW_HIDE : SW_SHOW);
     ShowWindow(primary, busy ? SW_HIDE : SW_SHOW);
     ShowWindow(finish, page == Page::Ready ? SW_SHOW : SW_HIDE);
-    SetWindowTextW(scope, allUsers ? t(L"All users", L"Для всех пользователей") : t(L"Only me", L"Только для меня"));
-    SetWindowTextW(primary, page == Page::Ready ? t(L"Open NOVA", L"Открыть NOVA")
+    SetWindowTextW(scope, allUsers ? t(L"All users  ▾", L"Для всех  ▾") : t(L"Only me  ▾", L"Только для меня  ▾"));
+    SetWindowTextW(primary, page == Page::Ready ? t(L"Open", L"Открыть")
                 : page == Page::Failed ? t(L"Try again", L"Повторить") : t(L"Install", L"Установить"));
     InvalidateRect(window, nullptr, FALSE);
     if (!busy) SetFocus(primary);
@@ -318,7 +373,7 @@ void Setup::install() {
 void Setup::poll() {
     if (WaitForSingleObject(installProcess, 0) == WAIT_TIMEOUT) {
         if (animate) {
-            phase = (phase + 4) % 316;
+            phase = (phase + 7) % (ContentWidth + 104);
             InvalidateRect(window, nullptr, FALSE);
         }
         return;
@@ -361,6 +416,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     }
     if (!setup) return DefWindowProcW(window, message, wParam, lParam);
     switch (message) {
+        case WM_NCCALCSIZE: return 0;
         case WM_CREATE: setup->createControls(); return 0;
         case WM_COMMAND:
             if (reinterpret_cast<HWND>(lParam) == setup->path) {
@@ -381,21 +437,14 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         case WM_PAINT: {
             PAINTSTRUCT paint;
             HDC dc = BeginPaint(window, &paint);
-            HDC buffer = CreateCompatibleDC(dc);
-            HBITMAP surface = CreateCompatibleBitmap(dc, setup->px(Width), setup->px(Height));
-            HGDIOBJ previous = SelectObject(buffer, surface);
-            setup->render(buffer);
-            BitBlt(dc, 0, 0, setup->px(Width), setup->px(Height), buffer, 0, 0, SRCCOPY);
-            SelectObject(buffer, previous);
-            DeleteObject(surface);
-            DeleteDC(buffer);
+            setup->paint(dc);
             EndPaint(window, &paint);
             return 0;
         }
         case WM_NCHITTEST: {
             POINT point{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
             ScreenToClient(window, &point);
-            if (point.y >= 0 && point.y < setup->px(56) && point.x < setup->px(620)) return HTCAPTION;
+            if (point.y >= 0 && point.y < setup->px(56) && point.x < setup->px(592)) return HTCAPTION;
             break;
         }
         case WM_CLOSE:
@@ -453,15 +502,18 @@ extern "C" int WINAPI NovaShowSetup(const wchar_t *installer, const wchar_t *pro
     SystemParametersInfoW(SPI_GETWORKAREA, 0, &area, 0);
     const int width = setup.px(Width), height = setup.px(Height);
     HWND window = CreateWindowExW(WS_EX_APPWINDOW | WS_EX_CONTROLPARENT, ClassName, L"NOVA Setup",
-                                  WS_POPUP | WS_SYSMENU | WS_CLIPCHILDREN,
+                                  WS_POPUP | WS_SYSMENU | WS_THICKFRAME | WS_CLIPCHILDREN,
                                   area.left + (area.right - area.left - width) / 2,
                                   area.top + (area.bottom - area.top - height) / 2,
                                   width, height, nullptr, nullptr, module, &setup);
     if (window) {
-        DWORD corner = 2;
-        DwmSetWindowAttribute(window, 33, &corner, sizeof(corner));
-        HRGN shape = CreateRoundRectRgn(0, 0, width + 1, height + 1, setup.px(24), setup.px(24));
-        if (shape && !SetWindowRgn(window, shape, FALSE)) DeleteObject(shape);
+        const DWM_WINDOW_CORNER_PREFERENCE corner = DWMWCP_ROUND;
+        DwmSetWindowAttribute(window, DWMWA_WINDOW_CORNER_PREFERENCE, &corner, sizeof(corner));
+        setup.acrylic = applyAcrylic(window, setup.px(Sidebar));
+        if (!setup.acrylic) {
+            HRGN shape = CreateRoundRectRgn(0, 0, width + 1, height + 1, setup.px(24), setup.px(24));
+            if (shape && !SetWindowRgn(window, shape, FALSE)) DeleteObject(shape);
+        }
         const bool testing = wcsstr(GetCommandLineW(), L"--test-profile=") != nullptr;
         ShowWindow(window, testing ? SW_SHOWNOACTIVATE : SW_SHOW);
         if (!testing) SetFocus(setup.primary);
