@@ -93,7 +93,7 @@
 .movie-card { animation: none; }
 .movie-grid { transition: opacity 160ms ease-out; }
 @starting-style { .movie-grid { opacity: 0; } }
-.app :is(.settings-dialog,.taste-dialog,.movie-detail,.content-notice) { animation: panel-enter var(--motion-panel) var(--ease-out); }
+.app :is(.settings-dialog,.taste-dialog,.movie-detail) { animation: panel-enter var(--motion-panel) var(--ease-out); }
 @keyframes panel-enter { from { opacity: 0; translate: 0 6px; } to { opacity: 1; translate: 0 0; } }
 .select-menu { animation: menu-enter var(--motion-menu) var(--ease-out); transform-origin: top left; }
 .select-menu[data-side='top'] { animation-name: menu-enter-up; transform-origin: bottom left; }
@@ -106,7 +106,7 @@
 .app .sidebar .settings-toggle[aria-expanded='true'] > .material-symbol { transform: rotate(45deg); }
 
 :root[data-input='keyboard'] :is(.selection-highlight,.settings-nav-lens) { transition: none; }
-:root[data-input='keyboard'] :is(.settings-dialog,.taste-dialog,.movie-detail,.content-notice,.select-menu,.search-dialog) { animation: none !important; }
+:root[data-input='keyboard'] :is(.settings-dialog,.taste-dialog,.movie-detail,.select-menu,.search-dialog) { animation: none !important; }
 :root[data-input='keyboard'] .app button:active { transform: none !important; }
 :root[data-motion='off'] *, :root[data-motion='off'] *::before, :root[data-motion='off'] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

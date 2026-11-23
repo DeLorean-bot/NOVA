@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Movie, Taste } from './types'
+import { useConnectionRetry } from './useConnectionRetry'
 
 export function useRecommendations(history: Movie[], favorites: Movie[], enabled: boolean, taste: Taste) {
   const [movies,setMovies] = useState<Movie[]>([])
@@ -32,5 +33,6 @@ export function useRecommendations(history: Movie[], favorites: Movie[], enabled
     const timer=setTimeout(()=>load(),attempted.current===null ? 0 : 400)
     return ()=>clearTimeout(timer)
   },[enabled,profileKey,load,loading])
+  useConnectionRetry(profileKey, enabled && Boolean(error), loading, () => void load())
   return { movies,loading,error,seen,seed,exhausted,ready:!enabled||settledKey===profileKey,refresh:load }
 }

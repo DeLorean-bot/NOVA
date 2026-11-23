@@ -2,7 +2,7 @@ const {createNativeMenus}=require('./native-menu.cjs');
 const { createAppearanceStore } = require('./appearance.cjs');
 const { readProfile, patchProfile } = require('./profile.cjs');
 const { normalViewBounds, shouldShowEmbeddedView } = require('./view-layout.cjs');
-const { app, BrowserWindow, WebContentsView, ipcMain, session, shell, Menu, webFrameMain, globalShortcut, Notification, screen, nativeImage, nativeTheme } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, session, shell, Menu, webFrameMain, globalShortcut, Notification, screen, nativeImage, nativeTheme, net } = require('electron');
 const englishMessages = require('./locales/en.json');
 const { resolveLanguage } = require('./language.cjs');
 const { checkForUpdate } = require('./releases-update.cjs');
@@ -11,12 +11,13 @@ const path = require('node:path');
 const { existsSync } = require('node:fs');
 const fs = require('node:fs/promises');
 const { pathToFileURL } = require('node:url');
-const { SOURCE, API, webUrl, contentInfo, movieId, normalizeMovie, parseBlacklist, normalizePlayers } = require('./core.cjs');
+const { SOURCE, API, webUrl, contentInfo, movieId, normalizeMovie, parseBlacklist, normalizePlayers, contentWarnings } = require('./core.cjs');
 const adblock = require('./adblock.cjs');
 const { metadataEndpoint, metadataPage, catalogParams, filterCatalogPage, externalTitle } = require('./library-source.cjs');
 const { plotWords, findPlotMovies } = require('./plot-search.cjs');
 const { chromiumFetch } = require('./network.cjs');
 const { videoFacts, playedDelta, watchProgress } = require('./playback.cjs');
+const { createPauseScene, pausedFrame } = require('./pause-scene.cjs');
 const { castQuery, castCredits } = require('./cast-credits.cjs');
 const { createUpcoming } = require('./upcoming.cjs');
 const { releaseTransition, dismissReleaseNotices } = require('./releases.cjs');
@@ -43,9 +44,9 @@ function windowIcon() {
   if (process.platform !== 'win32' || nativeTheme.shouldUseHighContrastColors) return iconFile();
   return iconFile(nativeTheme.shouldUseDarkColorsForSystemIntegratedUI ? '-dark' : '-light');
 }
-let nativeMenus;
+let nativeMenus, pauseScene, pauseProbeTimer, pauseRevision = 0;
 let win, dataFile, appearanceStore, writeQueue = Promise.resolve(), blacklist, blacklistTime = 0;
-let state = { profile: readProfile(null, nativeImage.createFromDataURL), favorites: [], history: [], releases: [], sites: [], theme: 'light', motion: true, glassBackground: true, taste: cleanTaste({}, cleanMovie), sidebarCollapsed: false };
+let state = { profile: readProfile(null, nativeImage.createFromDataURL), favorites: [], history: [], releases: [], sites: [], scores: {}, theme: 'light', motion: true, glassBackground: true, taste: cleanTaste({}, cleanMovie), sidebarCollapsed: false };
 let language = 'ru';
 let languageMode = 'system';
 let languageWrite = Promise.resolve();
@@ -59,6 +60,7 @@ let playbackTimer, releasesTimer, pollingPlayback = false, checkingReleases = fa
 const playerCache = new Map();
 const tabs = new Map(), knownMovies = new Map(), catalogCache = new Map();
 let active = null, concealed = false, nextTab = 1, concealRevision = 0;
+let previewRevision = 0;
 let metadataBase = '', metadataAt = 0;
 const searchCache = new Map(), metadataPending = new Map();
 let endpointPending, blacklistPending;
@@ -168,6 +170,7 @@ async function fetchMetadata(params, page, key) {
   for (const movie of result.movies) {
     const previous = knownMovies.get(movie.id);
     knownMovies.set(movie.id, { ...previous, ...movie, cover: previous?.cover || '', poster: movie.poster || previous?.poster || '',
+      age: movie.age || previous?.age || '', contentWarnings: movie.contentWarnings?.length ? movie.contentWarnings : previous?.contentWarnings || [],
       premiereDate: movie.premiereDate || previous?.premiereDate });
   }
   searchCache.set(key, { at: Date.now(), result });
@@ -177,12 +180,15 @@ async function fetchMetadata(params, page, key) {
 let viewRect = { x: 16, y: 212, width: 1408, height: 712 };
 
 function cleanMovie(m) {
+  let trailer = '';
+  try { if (m?.trailer) trailer = webUrl(m.trailer); } catch {}
   return {
     id: movieId(m?.id), type: m.type === 'series' ? 'series' : 'film',
     title: String(m.title || `Фильм ${m.id}`).slice(0, 250), original: String(m.original || '').slice(0, 250),
     year: Number(m.year) || null, rating: Number(m.rating) || null,
     poster: m.poster ? webUrl(m.poster) : '', cover: m.cover ? webUrl(m.cover) : '',
     age: String(m.age || '').replace(/\D/g, ''),
+    contentWarnings: contentWarnings(m.contentWarnings), trailer,
     genres: (Array.isArray(m.genres) ? m.genres : []).map(g => String(g).slice(0, 80)).slice(0, 5),
     description: String(m.description || '').slice(0, 4000),
     seasons: Number.isInteger(m.seasons) && m.seasons > 0 && m.seasons < 10000 ? m.seasons : undefined,
@@ -216,7 +222,7 @@ function tabState(t) {
 }
 
 function snapshot() {
-  return { ...state, tabs: [...tabs.values()].map(tabState), active, source: SOURCE, immersive: immersive(), fullscreen: Boolean(win && !win.isDestroyed() && win.isFullScreen()) };
+  return { ...state, tabs: [...tabs.values()].filter(tab => !tab.preview).map(tabState), active, source: SOURCE, immersive: immersive(), fullscreen: Boolean(win && !win.isDestroyed() && win.isFullScreen()) };
 }
 function emit() { if (win && !win.isDestroyed()) win.webContents.send('kadr:state', snapshot()); }
 function immersive() {
@@ -309,16 +315,87 @@ async function playersFor(id, fresh = false) {
   return providers;
 }
 
+function pauseSceneContext() {
+  const tab = tabs.get(active);
+  if (concealed || tab?.kind !== 'player') return null;
+  if (!tab.pausedFrame) {
+    if (tab.warningUntil > Date.now()) return { id: tab.id, view: tab.view, model: {
+      variant: 'warning', language, theme: state.theme, motion: state.motion, age: tab.movie.age, warnings: tab.movie.contentWarnings,
+      label: uiText('Возрастное ограничение'),
+    } };
+    return null;
+  }
+  const frame = tab.pausedFrame;
+  const cast = knownMovies.get(tab.movie.id)?.actors || tab.movie.actors || '';
+  const actors = frame.actors.length ? frame.actors.map(actor => ({ name: actor.name, detail: actor.role, image: actor.image }))
+    : cast.split(',').map(name => name.trim()).filter(Boolean).slice(0, 3).map(name => ({ name }));
+  return { id: tab.id, view: tab.view, model: {
+    language, theme: state.theme, motion: state.motion, time: Math.floor(frame.time), actors,
+    tracks: frame.tracks.map(track => ({ name: track.title, detail: track.artist, image: track.image })),
+    labels: {
+      pause: uiText('На паузе'), actors: uiText(frame.actors.length ? 'Актёры в кадре' : 'В ролях'),
+      music: uiText('Музыка в сцене'), noActors: uiText('Нет данных об актёрах в этой сцене'),
+      noMusic: uiText('Трек для этой сцены не указан'),
+    },
+  } };
+}
+
+function showPausedFrame(tab, facts) {
+  tab.pausedFrame = pausedFrame(facts);
+  if (tab.pausedFrame && tab.warningUntil > Date.now()) {
+    tab.warningUntil = 0;
+    clearTimeout(tab.warningTimer);
+  }
+  if (!tab.warningStarted && facts?.played && !facts.paused && facts.width && facts.ready >= 2 &&
+      (tab.movie.age || tab.movie.contentWarnings.length)) {
+    tab.warningStarted = Date.now();
+    tab.warningUntil = tab.warningStarted + 5500;
+    tab.warningTimer = setTimeout(() => pauseScene?.sync(), 5500);
+    tab.warningTimer.unref();
+  }
+  pauseScene?.sync();
+  if (!tab.pausedFrame) return;
+  if (!pauseProbeTimer && !concealed) schedulePauseProbe(tab, 650);
+  if (!tab.pausedFrame.actors.length && !tab.movie.actors && !knownMovies.get(tab.movie.id)?.actors && !tab.lookedUpPauseCast) {
+    tab.lookedUpPauseCast = true;
+    void sourceSearch(String(tab.movie.id)).then(() => pauseScene?.sync()).catch(() => {});
+  }
+}
+
+function schedulePauseProbe(tab, delay = 90) {
+  if (tab?.kind !== 'player' || tab.id !== active || concealed) return;
+  const revision = ++pauseRevision;
+  clearTimeout(pauseProbeTimer);
+  const view = tab.view;
+  pauseProbeTimer = setTimeout(async () => {
+    const facts = await videoFacts(view.webContents).catch(() => null);
+    if (revision !== pauseRevision) return;
+    pauseProbeTimer = undefined;
+    if (active === tab.id && tab.view === view) showPausedFrame(tab, facts);
+  }, delay);
+  pauseProbeTimer.unref();
+}
+
+function clearPausedFrame(tab) {
+  if (tab) tab.pausedFrame = null;
+  if (tab && tab.id !== active) return;
+  pauseRevision++;
+  clearTimeout(pauseProbeTimer);
+  pauseProbeTimer = undefined;
+  pauseScene?.sync();
+}
+
 async function pollPlayback() {
   if (pollingPlayback) return;
   const tab = tabs.get(active);
   if (!tab || tab.kind !== 'player' || tab.view.webContents.isDestroyed()) return;
   pollingPlayback = true;
   try {
-    const now = Date.now(), previous = tab.playback;
+    const now = Date.now(), previous = tab.playback, revision = pauseRevision;
     const view = tab.view;
     const facts = await videoFacts(view.webContents);
     if (tabs.get(tab.id) !== tab || tab.view !== view || active !== tab.id) return;
+    if (revision === pauseRevision && !pauseProbeTimer && !concealed) showPausedFrame(tab, facts);
     const elapsed = Math.min(10, (now - (tab.probedAt || now)) / 1000);
     const delta = playedDelta(previous, facts, elapsed);
     tab.probedAt = now; tab.playback = facts;
@@ -401,42 +478,50 @@ function layout() {
   const fullscreen = immersive();
   for (const tab of tabs.values()) {
     const view = tab.view;
-    const visible = shouldShowEmbeddedView(tab.id, active, concealed);
+    const visible = tab.preview
+      ? Boolean(concealed && tab.previewOwner === active && tab.previewRect?.width && tab.previewRect?.height)
+      : shouldShowEmbeddedView(tab.id, active, concealed);
     if (visible) {
-      const radius = fullscreen ? 0 : 16;
+      const radius = tab.preview ? 14 : fullscreen ? 0 : 16;
       if (tab.radiusView !== view || tab.radius !== radius) {
         view.setBorderRadius(radius);
         tab.radiusView = view;
         tab.radius = radius;
       }
-      const next = fullscreen ? { x: 0, y: 0, width, height } : {
-        x: Math.min(viewRect.x, width), y: Math.min(viewRect.y, height),
-        width: Math.max(1, Math.min(viewRect.width, width - viewRect.x)),
-        height: Math.max(1, Math.min(viewRect.height, height - viewRect.y)),
+      const rect = tab.preview ? tab.previewRect : viewRect;
+      const next = fullscreen && !tab.preview ? { x: 0, y: 0, width, height } : {
+        x: Math.min(rect.x, width), y: Math.min(rect.y, height),
+        width: Math.max(1, Math.min(rect.width, width - rect.x)),
+        height: Math.max(1, Math.min(rect.height, height - rect.y)),
       };
       const before = view.getBounds();
       if (next.x !== before.x || next.y !== before.y || next.width !== before.width || next.height !== before.height) view.setBounds(next);
     }
     if (view.getVisible() !== visible) view.setVisible(visible);
   }
+  pauseScene?.sync();
 }
 
 function activate(id) {
   if (immersive() && tabs.get(id)?.kind !== 'player') exitFullscreen();
+  if (active !== id) closeTrailerPreview();
+  clearPausedFrame(tabs.get(active));
   active = id; layout(); emit();
+  schedulePauseProbe(tabs.get(id));
 }
 
 function providerHost(provider) {
   return ['alloha', 'turbo', 'veoveo'].includes(provider?.name.toLowerCase()) ? `${SOURCE}/` : '';
 }
 
-function remoteTab({ title, url, kind = 'site', movie = null, providers = [], embedTrailer = true }) {
+function remoteTab({ title, url, kind = 'site', movie = null, providers = [], embedTrailer = true, previewRect }) {
   const id = `tab-${nextTab++}`;
   const hostUrl = kind === 'trailer' && embedTrailer ? `${SOURCE}/` : kind === 'player' ? providerHost(providers[0]) : '';
   const t = { id, title, url, hostUrl, targetUrl: url, kind, movie, providers, provider: 0, translation: -1, error: '', blocked: 0, recoveryAttempts: 0 };
+  if (previewRect) { t.preview = true; t.previewOwner = active; t.previewRect = previewRect; }
   tabs.set(id, t);
   attachRemoteView(t);
-  activate(id);
+  if (t.preview) layout(); else activate(id);
   loadRemote(t);
   return id;
 }
@@ -469,6 +554,7 @@ function mountHostedEmbed(tab, wc) {
 function rebuildRemote(t) {
   clearTimeout(t.recoveryTimer);
   if (tabs.get(t.id) !== t || !win || win.isDestroyed()) return;
+  clearPausedFrame(t);
   const old = t.view;
   t.recovering = false; t.error = ''; t.playback = null; t.probedAt = 0;
   // Detach listeners before closing: a late event from the old renderer must
@@ -520,7 +606,16 @@ function attachRemoteView(t) {
   });
   wc.on('enter-html-full-screen', () => { t.htmlFullscreen = true; if (active === id) enterFullscreen(); });
   wc.on('leave-html-full-screen', () => { t.htmlFullscreen = false; if (active === id && !fullscreenExit) exitFullscreen(); });
-  wc.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) t.blocked = 0; });
+  wc.on('did-start-navigation', (_event, _url, inPlace, isMainFrame) => {
+    if (isMainFrame) {
+      t.blocked = 0;
+      if (!inPlace) clearPausedFrame(t);
+    }
+  });
+  if (kind === 'player') {
+    wc.on('media-paused', () => schedulePauseProbe(t));
+    wc.on('media-started-playing', () => { clearPausedFrame(t); schedulePauseProbe(t); });
+  }
   wc.on('did-frame-finish-load', (_event, _main, processId, routingId) => {
     try {
       const frame = webFrameMain.fromId(processId, routingId);
@@ -535,6 +630,7 @@ function attachRemoteView(t) {
   });
   wc.on('render-process-gone', (_event, details) => {
     if (tabs.get(id) !== t || t.view !== view) return;
+    clearPausedFrame(t);
     recordRendererExit(t, details);
     if (active === id && immersive()) exitFullscreen();
     t.playback = null;
@@ -570,6 +666,9 @@ function attachRemoteView(t) {
 function closeTab(id) {
   const t = tabs.get(id);
   if (!t) return;
+  clearPausedFrame(t);
+  clearTimeout(t.warningTimer);
+  if (active === id) closeTrailerPreview();
   clearTimeout(t.recoveryTimer);
   if (active === id && immersive()) exitFullscreen();
   tabs.delete(id);
@@ -577,6 +676,16 @@ function closeTab(id) {
   win.contentView.removeChildView(t.view);
   if (!t.view.webContents.isDestroyed()) t.view.webContents.close();
   layout(); emit();
+}
+
+function closeTrailerPreview() {
+  previewRevision++;
+  for (const tab of tabs.values()) if (tab.preview) closeTab(tab.id);
+}
+
+function previewBounds(rect) {
+  if (!rect || !['x', 'y', 'width', 'height'].every(key => Number.isFinite(rect[key]) && rect[key] >= 0 && rect[key] < 20000)) return null;
+  return Object.fromEntries(['x', 'y', 'width', 'height'].map(key => [key, Math.round(rect[key])]));
 }
 
 function trustedSender(event) {
@@ -701,6 +810,44 @@ function registerHandlers() {
     return { ...movie, ...result, cover: movie.cover || knownMovies.get(movie.id)?.cover || '' };
   });
   handle('ratings', (imdbId, type) => ratingsFor(String(imdbId), type));
+  handle('score-title', async (value, score) => {
+    const id = movieId(value);
+    if (score === null) delete state.scores[id];
+    else {
+      if (!Number.isInteger(score) || score < 1 || score > 10) throw new Error('Оценка должна быть от 1 до 10');
+      const movie = state.scores[id]?.movie || state.history.find(movie => movie.id === id) || knownMovies.get(id);
+      if (!movie) throw new Error('Фильм не найден');
+      state.scores[id] = { movie: cleanMovie(movie), value: score };
+    }
+    await save(); emit();
+  });
+  handle('trailer-preview', async (input, rect) => {
+    const owner = tabs.get(active);
+    closeTrailerPreview();
+    if (!input) return null;
+    const bounds = previewBounds(rect);
+    if (!bounds || owner?.kind !== 'player') return null;
+    const revision = previewRevision;
+    let movie = cleanMovie(input);
+    const known = knownMovies.get(movie.id);
+    if (known) movie = { ...movie, ...known };
+    if (!movie.trailer) {
+      const result = await sourceSearch(String(movie.id));
+      movie = { ...movie, ...result.movies[0] };
+    }
+    if (revision !== previewRevision || owner.id !== active) return null;
+    const destination = trailerDestination(movie);
+    if (!destination.direct) throw new Error('У этого фильма нет встроенного трейлера.');
+    await preparePlayerSession();
+    if (revision !== previewRevision || owner.id !== active) return null;
+    return remoteTab({ title: movie.title, url: destination.url, kind: 'trailer', movie, previewRect: bounds });
+  });
+  handle('trailer-preview-bounds', (id, rect) => {
+    const tab = tabs.get(id);
+    const bounds = previewBounds(rect);
+    if (!tab?.preview || !bounds) return;
+    tab.previewRect = bounds; layout();
+  });
   handle('trailer', async input => {
     const id = movieId(typeof input==='object'?input?.id:input);
     let movie={...(typeof input==='object'?cleanMovie(input):knownMovies.get(id)||{id,title:`Фильм ${id}`,type:'film'})};
@@ -741,7 +888,10 @@ function registerHandlers() {
     const current = tabs.get(active);
     if (value && current && !concealed) { try { poster = (await current.view.webContents.capturePage()).toDataURL(); } catch {} }
     if (revision !== concealRevision) return null;
-    concealed = Boolean(value); layout(); syncEscapeShortcut();
+    concealed = Boolean(value);
+    if (concealed) clearPausedFrame(tabs.get(active));
+    else schedulePauseProbe(tabs.get(active));
+    layout(); syncEscapeShortcut();
     if (concealed && win && !win.isDestroyed()) win.webContents.focus();
     return poster;
   });
@@ -767,7 +917,8 @@ function registerHandlers() {
   handle('watch', async input => {
     let movie = cleanMovie(input);
     const known = knownMovies.get(movie.id);
-    if (known) movie = { ...movie, ...known };
+    if (known) movie = { ...movie, ...known, age: known.age || movie.age,
+      contentWarnings: known.contentWarnings?.length ? known.contentWarnings : movie.contentWarnings };
     if (!movie.poster || /^Кинопоиск · |^Фильм \d+$/.test(movie.title)) {
       try { movie = (await sourceSearch(String(movie.id))).movies[0] || movie; } catch {}
     }
@@ -792,6 +943,7 @@ function registerHandlers() {
     if (!t || t.kind !== 'player' || !Number.isInteger(provider) || !t.providers[provider]) throw new Error('Плеер не найден');
     const p = t.providers[provider];
     if (!Number.isInteger(translation) || translation < -1 || translation >= p.translations.length) throw new Error('Озвучка не найдена');
+    clearPausedFrame(t);
     clearTimeout(t.recoveryTimer); t.recoveryAttempts = 0;
     t.provider = provider; t.translation = translation; t.error = ''; t.playback = null; t.probedAt = 0;
     const url = translation === -1 ? p.url : p.translations[translation].url;
@@ -912,6 +1064,10 @@ async function createWindow() {
     state.motion = saved.motion !== false;
     state.glassBackground = saved.glassBackground !== false;
     state.taste = cleanTaste(saved.taste,cleanMovie);
+    state.scores = Object.fromEntries(Object.values(saved.scores || {}).flatMap(score => {
+      if (!Number.isInteger(score?.value) || score.value < 1 || score.value > 10) return [];
+      try { const movie = cleanMovie(score.movie); return [[movie.id, { movie, value: score.value }]]; } catch { return []; }
+    }));
     state.sidebarCollapsed = saved.sidebarCollapsed === true;
     state.preferredProvider = typeof saved.preferredProvider === 'string' ? saved.preferredProvider.slice(0, 100) : '';
     state.favorites = (saved.favorites || []).flatMap(m => { try { return [cleanMovie(m)]; } catch { return []; } });
@@ -963,6 +1119,7 @@ async function createWindow() {
     window.once('closed', () => nativeTheme.removeListener('updated', syncIcon));
   }
   nativeMenus=createNativeMenus({BrowserWindow,ipcMain,parent:win,getState:()=>state,getView:()=>concealed?null:tabs.get(active)?.view,onCommand:command=>{if(command==='fullscreen')toggleFullscreen();else win.webContents.send('kadr:focus-search')}});
+  pauseScene = createPauseScene({ BrowserWindow, parent: win, context: pauseSceneContext });
   Menu.setApplicationMenu(null);
   win.webContents.on('will-navigate', event => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -976,7 +1133,7 @@ async function createWindow() {
   win.on('blur', syncEscapeShortcut);
   win.on('enter-full-screen', () => { syncEscapeShortcut(); layout(); emit(); });
   win.on('leave-full-screen', () => { syncEscapeShortcut(); if (!fullscreenExit && (fullscreenWanted || tabs.get(active)?.htmlFullscreen)) exitFullscreen(); else { layout(); emit(); } });
-  win.on('closed', () => { nativeMenus?.dispose(); globalShortcut.unregister('Escape'); globalShortcut.unregister('F11'); for (const t of tabs.values()) if (!t.view.webContents.isDestroyed()) t.view.webContents.close(); tabs.clear(); win = null; });
+  win.on('closed', () => { nativeMenus?.dispose(); pauseScene?.dispose(); clearPausedFrame(); globalShortcut.unregister('Escape'); globalShortcut.unregister('F11'); for (const t of tabs.values()) if (!t.view.webContents.isDestroyed()) t.view.webContents.close(); tabs.clear(); win = null; });
   if (testProfile) win.showInactive();
   else win.show();
   if (!testProfile) {
@@ -985,6 +1142,7 @@ async function createWindow() {
     appUpdates = createAppUpdates({
       updater: installed ? require('electron-updater').autoUpdater : null,
       lookup: () => checkForUpdate(chromiumFetch, app.getVersion()),
+      isOnline: () => net.isOnline(),
       openExternal: url => shell.openExternal(url),
       publish: status => { if (win && !win.isDestroyed()) win.webContents.send('kadr:update-status', status); },
       announce: announceUpdate,
@@ -1029,5 +1187,5 @@ else {
   });
   app.whenReady().then(async () => { registerHandlers(); await createWindow(); });
   app.on('window-all-closed', () => app.quit());
-  app.on('before-quit', event => { clearInterval(playbackTimer); clearInterval(releasesTimer); clearInterval(updateTimer); if (writeQueue) { event.preventDefault(); const pending = save(); writeQueue = null; Promise.allSettled([pending, languageWrite, appearanceStore?.flush()]).then(() => app.quit()); } });
+  app.on('before-quit', event => { clearInterval(playbackTimer); clearInterval(releasesTimer); clearInterval(updateTimer); appUpdates?.dispose(); if (writeQueue) { event.preventDefault(); const pending = save(); writeQueue = null; Promise.allSettled([pending, languageWrite, appearanceStore?.flush()]).then(() => app.quit()); } });
 }

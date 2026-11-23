@@ -4,4 +4,9 @@
 function chromiumFetch(input, init) {
   return require('electron').net.fetch(input, init);
 }
-module.exports = { chromiumFetch };
+
+function isConnectionError(error) {
+  const description = typeof error === 'string' ? error : `${error?.code || ''} ${error?.message || ''}`;
+  return error?.name === 'TimeoutError' || /\b(?:ERR_(?:INTERNET_DISCONNECTED|NETWORK_CHANGED|NETWORK_IO_SUSPENDED|ADDRESS_UNREACHABLE|NAME_NOT_RESOLVED|CONNECTION_(?:RESET|CLOSED|REFUSED|ABORTED|TIMED_OUT|FAILED)|TIMED_OUT)|ECONNRESET|ECONNREFUSED|ENET(?:DOWN|UNREACH)|EHOSTUNREACH|EAI_AGAIN|ENOTFOUND|ETIMEDOUT)\b/i.test(description);
+}
+module.exports = { chromiumFetch, isConnectionError };

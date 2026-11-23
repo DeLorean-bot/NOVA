@@ -1,4 +1,4 @@
-const { movieId, webUrl } = require('./core.cjs');
+const { movieId, webUrl, contentWarnings } = require('./core.cjs');
 
 function externalTitle(text) {
   const imdb = text.match(/^(?:imdb\s*:\s*)?(tt\d{7,10})$/i);
@@ -69,6 +69,7 @@ function normalizeMetadata(item) {
     premiereDate: premiereDate(item.premiere),
     year: Number(item.year) || null, poster, cover: '', rating: Number(item.rating_kp) || null,
     age: String(item.age_restrictions || '').replace(/\D/g, ''),
+    contentWarnings: contentWarnings(item.content_warnings),
     genres: String(item.genre || '').split(',').map(g => g.trim()).filter(Boolean).slice(0, 5),
     description: String(item.description || '').slice(0, 4000),
     seasons: Number.isInteger(Number(item.seasons_count)) && Number(item.seasons_count) > 0 ? Number(item.seasons_count) : undefined,

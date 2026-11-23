@@ -6,6 +6,7 @@ import { ReleaseList } from './ReleaseList'
 import type { Movie, Release, Taste } from './types'
 import { allowedSuggestion, tasteModel } from './taste'
 import { MoviePoster } from './MoviePoster'
+import { useConnectionRetry } from './useConnectionRetry'
 
 let calendarCache: { movies: Movie[]; at: number } | undefined
 let calendarRequest: Promise<Movie[]> | undefined
@@ -44,6 +45,7 @@ export function UpcomingPage({ items, follow, remove, check, detail, taste, hist
   useEffect(() => {
     if (tab === 'calendar' && (!calendarCache || Date.now() - calendarCache.at >= 15 * 60_000)) void load()
   }, [tab])
+  useConnectionRetry(tab, tab === 'calendar' && Boolean(error), busy, () => void load(true))
   const model=useMemo(()=>tasteModel(history,favorites,taste),[history,favorites,taste])
   const available=movies.filter(m=>allowedSuggestion(m,taste,false))
   const personal=available.filter(m=>model.affinity(m)>0||taste.liked.some(l=>l.id===m.id)).sort((a,b)=>(model.affinity(b)+(taste.liked.some(m=>m.id===b.id)?30:0))-(model.affinity(a)+(taste.liked.some(m=>m.id===a.id)?30:0))||a.premiereDate!.localeCompare(b.premiereDate!)).slice(0,6)

@@ -1,0 +1,41 @@
+.watch-finale { position: absolute; inset: 0; isolation: isolate; overflow: hidden; background: #0b0d12; color: #fff; }
+.post-playback .app-header, .post-playback .tabbar { display: none; }
+.post-playback .feedback-toast.nl-feedback { right: clamp(18px, 3vw, 44px); bottom: max(82px, calc(4vh + 54px)); }
+.finale-backdrop { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.watch-finale::before { content: ''; position: absolute; z-index: -1; inset: 0; background: linear-gradient(180deg, #090b13bc, #090b1320 34%, #090b1310 56%, #090b13db); pointer-events: none; }
+.finale-stage { height: 100%; }
+.finale-heading { position: relative; z-index: 1; padding: clamp(24px, 5vh, 55px) 84px 0; text-align: center; text-shadow: 0 2px 16px #000b; }
+.watch-finale .finale-heading h1 { margin: 5px auto 0; max-width: 22ch; font-size: clamp(27px, 5.5vw, 76px); line-height: 1.02; font-weight: 650; letter-spacing: -.06em; outline: 0; }
+.finale-heading p, .finale-heading > span { margin: 0; color: #e0e4ef; font-size: 13px; }
+.finale-heading > span { display: block; margin-top: 10px; }
+.watch-finale .finale-glass { border: 1px solid var(--menu-rim); background: var(--menu-glass); color: var(--fg); box-shadow: var(--menu-drop-shadow); backdrop-filter: var(--menu-blur); }
+.watch-finale button.finale-glass:hover { background: var(--menu-glass-hover); }
+.app .watch-finale .finale-dismiss { position: absolute; top: 24px; left: 24px; z-index: 2; width: 42px; height: 42px; border-radius: 50%; }
+.finale-trailer { position: absolute; top: clamp(130px, 23%, 200px); bottom: clamp(138px, 20%, 200px); left: 50%; width: min(78%, 1020px); transform: translateX(-50%); visibility: hidden; border-radius: 16px; background: #08090d; box-shadow: 0 12px 32px #0006; }
+.finale-trailer[data-preview='true'] { visibility: visible; }
+.finale-dock { position: absolute; z-index: 1; right: clamp(18px, 3vw, 44px); bottom: clamp(18px, 4vh, 48px); left: clamp(18px, 3vw, 44px); display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
+.finale-rating { display: flex; align-items: center; gap: 13px; max-width: 100%; padding: 9px 14px 9px 9px; border-radius: 16px; text-align: left; cursor: pointer; }
+.finale-poster { display: grid; width: 50px; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 8px; flex: none; }
+.finale-poster img { width: 100%; height: 100%; object-fit: cover; }
+.finale-poster .poster-unavailable > span { display: none; }
+.finale-rating-copy { display: grid; gap: 4px; min-width: 0; }
+.finale-rating-copy strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 15px; }
+.finale-rating-copy > span { color: var(--secondary); font-size: 12px; }
+.finale-star-preview { white-space: nowrap; letter-spacing: .22em; }
+.finale-star-preview .filled, .watch-finale .finale-stars button.filled { color: var(--action-bg, #5e7eff); }
+.finale-next { margin-left: auto; }
+.finale-actions { display: flex; justify-content: end; flex-wrap: wrap; gap: 8px; }
+.watch-finale .finale-actions button { min-height: 42px; border-radius: 999px; }
+.finale-error { margin: 0 0 8px auto; max-width: min(100%, 350px); padding: 9px 12px; border-radius: 10px; font-size: 12px; }
+.finale-score-view { position: absolute; z-index: 3; inset: 0; display: grid; place-items: center; padding: 22px; background: var(--menu-glass); color: var(--fg); backdrop-filter: var(--menu-blur); }
+.finale-score-content { width: min(100%, 600px); text-align: center; }
+.watch-finale .finale-score-content h2, .finale-score-content p { margin: 0; }
+.finale-score-content p { margin-bottom: 8px; color: var(--secondary); }
+.watch-finale .finale-score-content h2 { outline: 0; font-size: clamp(19px, 3vw, 31px); line-height: 1.2; }
+.finale-score-number { color: var(--fg); font-size: clamp(68px, 13vw, 156px); line-height: .95; font-weight: 700; letter-spacing: -.08em; font-variant-numeric: tabular-nums; }
+.finale-stars { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; margin-top: 19px; }
+.watch-finale .finale-stars button { min-height: 40px; padding: 0; border: 0; border-radius: 8px; color: var(--secondary); background: transparent; font-size: clamp(18px, 4.2vw, 42px); cursor: pointer; }
+.finale-stars button:focus-visible { outline: 2px solid var(--action-bg, #5e7eff); outline-offset: -2px; }
+@media (max-height: 700px) { .watch-finale .finale-heading h1 { font-size: clamp(26px, 4.5vw, 55px); } }
+@media (max-width: 740px) { .post-playback .feedback-toast.nl-feedback { bottom: max(126px, calc(4vh + 104px)); } }
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) { .watch-finale .finale-glass, .finale-score-view { background: var(--menu-solid); backdrop-filter: none; } }

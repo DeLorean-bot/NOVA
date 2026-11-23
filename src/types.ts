@@ -16,6 +16,7 @@ export type Movie = {
   watchedRanges?: [number, number][]; watchedDuration?: number; completed?: boolean;
   imdbId?: string; imdbRating?: number | null; directors?: string; actors?: string;
   country?: string; runtime?: number | null; trailer?: string;
+  contentWarnings?: string[];
 }
 export type TomatoRating = { url: string; rating: null | { score: number; sentiment: string; source: string; checkedAt: string } }
 export type Release = Movie & { addedAt: string; available: boolean | null; checkedAt?: string; availableAt?: string; unread: boolean; noticeDismissed?: boolean; error?: string }
@@ -38,7 +39,10 @@ export type AppState = {
   tabs: RemoteTab[]; active: string | null; source: string;
   theme: 'light' | 'dark'; motion: boolean; glassBackground: boolean; sidebarCollapsed: boolean; immersive: boolean; fullscreen: boolean;
   taste: Taste;
+  scores: Record<number, TitleScore>;
 }
+export type PlayerBounds = { x: number; y: number; width: number; height: number }
+export type TitleScore = { movie: Movie; value: number }
 export type Taste = { liked: Movie[]; disliked: Movie[]; hidden: Movie[]; genres: string[]; blockedGenres: string[]; seen: number[] }
 export type FilmOpinion = 'like' | 'dislike' | 'hide' | 'reset'
 export type FeedbackNotice = { id:string;movie:Movie;message:string;undoToken?:string }
@@ -78,6 +82,9 @@ export type API = {
   recommendationsSeen(ids: number[]): Promise<void>;
   upcoming(): Promise<Movie[]>;
   details(movie: Movie): Promise<Movie>; ratings(imdbId: string, type: 'film' | 'series'): Promise<TomatoRating>; trailer(movie: Movie | number): Promise<string>;
+  trailerPreview(movie: Movie | null, rect?: PlayerBounds): Promise<string | null>;
+  trailerPreviewBounds(id: string, rect: PlayerBounds): Promise<void>;
+  scoreTitle(id: number, score: number | null): Promise<void>;
   open(url: string): Promise<string>; home(): Promise<void>; tab(id: string): Promise<void>; closeTab(id: string): Promise<void>;
   bounds(rect: { x: number; y: number; width: number; height: number }): Promise<void>;
   conceal(value: boolean): Promise<string | null>; navigate(action: string, address?: string): Promise<void>; watch(movie: Movie): Promise<string>;

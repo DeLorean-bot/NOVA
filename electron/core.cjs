@@ -39,6 +39,12 @@ function thumbnailUrl(value) {
   } catch { return safe; }
 }
 
+function contentWarnings(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map(item => typeof item === 'string' ? item : item?.name || item?.text)
+    .filter(item => typeof item === 'string').map(item => item.trim().slice(0, 160)).filter(Boolean))].slice(0, 3);
+}
+
 function normalizeMovie(item) {
   const countries = item.countries ?? item.country;
   return {
@@ -51,6 +57,7 @@ function normalizeMovie(item) {
     cover: imageUrl(item.gallery?.coverUrl),
     rating: Number(item.rating?.kinopoisk?.value) || null,
     age: String(item.restriction?.age || '').replace(/\D/g, ''),
+    contentWarnings: contentWarnings(item.restriction?.warnings),
     genres: (Array.isArray(item.genres) ? item.genres : []).map(g => String(g.name || '')).filter(Boolean).slice(0, 5),
     description: String(item.description || item.synopsis || '').slice(0, 4000),
     country: (Array.isArray(countries) ? countries.map(country => typeof country === 'string' ? country : country?.name || country?.title || country?.code || '').filter(Boolean).join(', ') : typeof countries === 'string' ? countries : '').slice(0, 250),
@@ -78,4 +85,4 @@ function normalizePlayers(data) {
   });
 }
 
-module.exports = { SOURCE, API, webUrl, contentInfo, movieId, normalizeMovie, parseBlacklist, normalizePlayers };
+module.exports = { SOURCE, API, webUrl, contentInfo, movieId, normalizeMovie, parseBlacklist, normalizePlayers, contentWarnings };

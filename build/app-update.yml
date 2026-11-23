@@ -1,0 +1,5 @@
+provider: github
+owner: DeLorean-bot
+repo: NOVA
+private: false
+updaterCacheDirName: kadr-desktop-updater

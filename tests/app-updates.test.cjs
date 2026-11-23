@@ -52,3 +52,29 @@ test('portable updates open the release provided by the project lookup', async (
   await updates.apply();
   assert.deepEqual(opened, [release.url]);
 });
+
+test('a failed update check retries after connectivity returns', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let online = false;
+  let checks = 0;
+  const updates = createAppUpdates({
+    lookup: async () => {
+      checks++;
+      if (!online) throw new Error('net::ERR_INTERNET_DISCONNECTED');
+      return { version: '0.8.21', url: 'https://github.com/DeLorean-bot/NOVA/releases/tag/v0.8.21' };
+    },
+    isOnline: () => online,
+    publish() {},
+  });
+  t.after(() => updates.dispose());
+  await updates.check();
+  assert.equal(updates.state.phase, 'error');
+  t.mock.timers.tick(5000);
+  assert.equal(checks, 1);
+
+  online = true;
+  t.mock.timers.tick(15000);
+  await updates.check();
+  assert.equal(checks, 2);
+  assert.deepEqual(updates.state, { phase: 'external', version: '0.8.21' });
+});

@@ -9,6 +9,9 @@ async function checkForUpdate(fetch, installed) {
     signal: AbortSignal.timeout(4000),
     headers: { Accept: 'application/vnd.github+json' },
   });
+  if (response.status === 429 || response.status >= 500) {
+    throw Object.assign(new Error(`GitHub returned ${response.status}`), { statusCode: response.status });
+  }
   if (!response.ok) return null;
   const { tag_name: tag, draft, prerelease } = await response.json();
   if (typeof tag !== 'string' || draft || prerelease) return null;

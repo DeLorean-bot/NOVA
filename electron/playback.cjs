@@ -3,12 +3,15 @@
 const VIDEO_PROBE = `(() => [...document.querySelectorAll('video')].map(v => ({
   width: v.videoWidth, height: v.videoHeight, time: v.currentTime,
   duration: Number.isFinite(v.duration) ? v.duration : null,
-  paused: v.paused, ended: v.ended, ready: v.readyState, error: v.error?.code || null,
-  cues: [...v.textTracks].filter(track => track.kind === 'metadata').flatMap(track =>
-    [...(track.activeCues || [])].map(cue => {
+  paused: v.paused, ended: v.ended, seeking: v.seeking, played: v.played.length > 0,
+  ready: v.readyState, error: v.error?.code || null,
+  cues: [...v.textTracks].filter(track => track.kind === 'metadata').flatMap(track => {
+    if (track.mode === 'disabled') track.mode = 'hidden';
+    return [...(track.activeCues || [])].filter(cue => cue.startTime <= v.currentTime && v.currentTime < cue.endTime).map(cue => {
       const content = cue.text || cue.value?.data;
       return typeof content === 'string' && content.length <= 4000 ? content : '';
-    })).filter(Boolean).slice(0, 8),
+    });
+  }).filter(Boolean).slice(0, 8),
   frames: v.getVideoPlaybackQuality?.().totalVideoFrames || 0,
   dropped: v.getVideoPlaybackQuality?.().droppedVideoFrames || 0
 })))()`;
@@ -25,21 +28,37 @@ async function videoFacts(wc) {
   return { ...facts, scene: sceneMetadata(cues) };
 }
 function sceneMetadata(cues) {
-  const scene = { actors: [], music: [], finalEpisode: false };
-  const names = values => (Array.isArray(values) ? values : [values]).flatMap(value =>
-    typeof value === 'string' && value.trim() ? [value.trim().slice(0, 160)] : []);
+  const actors = new Map(), tracks = new Map();
+  const text = value => typeof value === 'string' ? value.trim().slice(0, 160) : '';
+  const list = value => Array.isArray(value) ? value : [value];
+  const image = value => {
+    try {
+      if (typeof value !== 'string' || value.length > 2048) return '';
+      const url = new URL(value);
+      return url.protocol === 'https:' && !url.username && !url.password ? url.href : '';
+    } catch { return ''; }
+  };
+  let finalEpisode = false;
   for (const cue of Array.isArray(cues) ? cues : []) {
     if (typeof cue !== 'string' || cue.length > 4000) continue;
     let value;
     try { value = JSON.parse(cue); } catch { continue; }
     if (!value || typeof value !== 'object') continue;
-    scene.actors.push(...names(value.actors));
-    for (const track of Array.isArray(value.music) ? value.music : [value.music]) {
-      scene.music.push(...names(typeof track === 'object' && track ? [track.artist, track.title].filter(part => typeof part === 'string').join(' — ') : track));
+    for (const actor of list(value.actors)) {
+      const name = text(actor?.name ?? actor);
+      if (name && !actors.has(name) && actors.size < 12) {
+        actors.set(name, { name, role: text(actor?.character ?? actor?.role), image: image(actor?.photo ?? actor?.image) });
+      }
     }
-    if (value.episode?.final === true) scene.finalEpisode = true;
+    for (const track of list(value.music)) {
+      const title = text(track?.title ?? track);
+      const artist = text(track?.artist);
+      const label = [artist, title].filter(Boolean).join(' — ');
+      if (title && !tracks.has(label) && tracks.size < 8) tracks.set(label, { title, artist, image: image(track?.artwork ?? track?.image) });
+    }
+    if (value.episode?.final === true) finalEpisode = true;
   }
-  return { actors: [...new Set(scene.actors)].slice(0, 12), music: [...new Set(scene.music)].slice(0, 8), finalEpisode: scene.finalEpisode };
+  return { actors: [...actors.keys()], music: [...tracks.keys()], actorCards: [...actors.values()], tracks: [...tracks.values()], finalEpisode };
 }
 function playedDelta(previous, current, elapsed) {
   if (!previous || !current || (current.paused && !current.ended) || current.duration <= 600 || !current.width || current.ready < 2) return 0;
