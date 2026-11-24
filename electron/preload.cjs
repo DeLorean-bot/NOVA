@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld('kadr', {
   initialSidebarCollapsed: process.argv.includes('--kadr-sidebar=compact'),
   state: () => invoke('state'),
   updateStatus: () => invoke('update-status'),
-  checkUpdate: () => invoke('check-update'),
+  checkUpdate: background => invoke('check-update', background),
   applyUpdate: () => invoke('apply-update'),
   onUpdateStatus: listener => {
     const status = (_, value) => listener(value);

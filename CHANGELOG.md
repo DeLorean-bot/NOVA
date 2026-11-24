@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.23
+
+- NOVA checks for new releases every minute while open, and again when the connection returns. It announces a new release and downloads installed-app updates in the background.
+
 ## 0.8.22
 
 - Double-clicking the video uses NOVA's fullscreen layout and keeps player controls at their regular size.

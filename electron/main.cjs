@@ -55,7 +55,7 @@ let state = { profile: readProfile(null, nativeImage.createFromDataURL), favorit
 let language = 'ru';
 let languageMode = 'system';
 let languageWrite = Promise.resolve();
-let appUpdates, updateTimer, desktopUpdateNotice, community, communityTimer, communityDiscovery;
+let appUpdates, desktopUpdateNotice, community, communityTimer, communityDiscovery;
 let playerSessionReady;
 const uiText = (message, ...values) => {
   const template = language === 'en' && Object.hasOwn(englishMessages, message) ? englishMessages[message] : message;
@@ -797,7 +797,10 @@ function registerHandlers() {
   handle('upcoming', upcoming);
   handle('state', () => snapshot());
   handle('update-status', () => appUpdates?.state ?? { phase: 'idle' });
-  handle('check-update', () => { void appUpdates?.check(); });
+  handle('check-update', background => {
+    if (background === true) void appUpdates?.reconnect();
+    else void appUpdates?.check();
+  });
   handle('apply-update', async () => {
     await Promise.all([writeQueue, languageWrite, appearanceStore?.flush()]);
     await appUpdates?.apply();
@@ -1254,9 +1257,7 @@ async function createWindow() {
       publish: status => { if (win && !win.isDestroyed()) win.webContents.send('kadr:update-status', status); },
       announce: announceUpdate,
     });
-    void appUpdates.check();
-    updateTimer = setInterval(() => { void appUpdates.check(); }, 6 * 60 * 60 * 1000);
-    updateTimer.unref();
+    appUpdates.start();
   }
   await win.loadFile(localPage);
   if (!testProfile && !community.state.configured) {
@@ -1299,5 +1300,5 @@ else {
   });
   app.whenReady().then(async () => { registerHandlers(); await createWindow(); });
   app.on('window-all-closed', () => app.quit());
-  app.on('before-quit', event => { clearInterval(playbackTimer); clearInterval(releasesTimer); clearInterval(updateTimer); clearInterval(communityTimer); appUpdates?.dispose(); community?.close(); if (writeQueue) { event.preventDefault(); const pending = save(); writeQueue = null; Promise.allSettled([pending, languageWrite, appearanceStore?.flush()]).then(() => app.quit()); } });
+  app.on('before-quit', event => { clearInterval(playbackTimer); clearInterval(releasesTimer); clearInterval(communityTimer); appUpdates?.dispose(); community?.close(); if (writeQueue) { event.preventDefault(); const pending = save(); writeQueue = null; Promise.allSettled([pending, languageWrite, appearanceStore?.flush()]).then(() => app.quit()); } });
 }

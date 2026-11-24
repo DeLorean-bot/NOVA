@@ -190,7 +190,7 @@ export default function App() {
     }
     const stopUpdate = api.onUpdateStatus(status => { receivedStatus = true; acceptUpdate(status) })
     const stopShowUpdates = api.onShowUpdates(openUpdates)
-    const reconnect = () => { void api.checkUpdate().catch(() => {}); void api.reconnectCommunity().catch(() => {}) }
+    const reconnect = () => { void api.checkUpdate(true).catch(() => {}); void api.reconnectCommunity().catch(() => {}) }
     window.addEventListener('online', reconnect)
     const stopSearchPhase = api.onSearchPhase((id, phase) => {
       if (id === searchRevision.current && id === searchInFlight.current) setSearchPhase(phase)
@@ -570,7 +570,7 @@ export default function App() {
     {startupDone && notification && <FeedbackToast key={notification.id} notice={notification.feedback} message={notification.message} action={notification.action}
       close={() => setNotification(current => current?.id === notification.id ? null : current)}
       undo={notification.feedback?.undoToken ? () => api!.undoFeedback(notification.feedback!.undoToken!) : undefined}/>}
-    {startupDone && !notification && !settingsOpen && !state.immersive && availableUpdate && updateKey && updateKey !== dismissedUpdate &&
+    {startupDone && !notification && !state.immersive && availableUpdate && updateKey && updateKey !== dismissedUpdate &&
       <FeedbackToast key={updateKey} title={updateTitle ?? undefined} duration={10000}
         message={availableUpdate.phase === 'downloading' ? t('Скачиваем обновление в фоне.')
           : availableUpdate.phase === 'ready' ? t('Перезапустите NOVA, чтобы установить обновление.') : undefined}

@@ -65,7 +65,7 @@ export type API = {
   initialSidebarCollapsed: boolean;
   state(): Promise<AppState>; catalog(type: 'films' | 'series', page: number): Promise<Catalog>;
   updateStatus(): Promise<UpdateStatus>;
-  checkUpdate(): Promise<void>;
+  checkUpdate(background?: boolean): Promise<void>;
   applyUpdate(): Promise<void>;
   onUpdateStatus(listener: (status: UpdateStatus) => void): () => void;
   onShowUpdates(listener: () => void): () => void;

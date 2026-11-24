@@ -1,12 +1,13 @@
 const { isConnectionError } = require('./network.cjs');
 const retryDelays = [5000, 15000, 30000, 60000];
+const checkInterval = 60_000;
 
 function createAppUpdates({ updater, lookup, openExternal, publish, announce = () => {}, isOnline = () => true }) {
   let state = { phase: 'idle' };
-  let request, release, retryTimer, attempts = 0, disposed = false;
+  let request, release, retryTimer, pollTimer, attempts = 0, disposed = false;
   const announced = new Map();
   const report = (phase, data = {}) => {
-    if (disposed) return;
+    if (disposed || (state.phase === phase && state.version === data.version && state.progress === data.progress)) return;
     state = { phase, ...data };
     publish(state);
     if (['downloading', 'ready', 'external'].includes(phase) && announced.get(phase) !== state.version) {
@@ -18,7 +19,7 @@ function createAppUpdates({ updater, lookup, openExternal, publish, announce = (
     if (disposed || retryTimer) return;
     retryTimer = setTimeout(() => {
       retryTimer = undefined;
-      if (isOnline()) void check();
+      if (isOnline()) void check(true);
       else retryLater();
     }, retryDelays[Math.min(attempts++, retryDelays.length - 1)]);
     retryTimer.unref();
@@ -46,23 +47,33 @@ function createAppUpdates({ updater, lookup, openExternal, publish, announce = (
     updater.on('error', fail);
   }
 
-  function check() {
+  function check(background = false) {
     if (disposed || request || ['ready', 'installing'].includes(state.phase)) return request;
     clearTimeout(retryTimer);
     retryTimer = undefined;
-    report('checking');
+    if (!background && state.phase !== 'external') report('checking');
     request = (async () => {
-      if (updater) {
-        const result = await updater.checkForUpdates();
-        await result?.downloadPromise;
-        if (state.phase === 'checking') report('current');
-      } else {
+      if (!updater || (background && lookup)) {
         release = await lookup();
-        if (release) report('external', { version: release.version });
-        else report('current');
+        if (!release) { report('current'); return; }
+        if (!updater) { report('external', { version: release.version }); return; }
       }
+      const result = await updater.checkForUpdates();
+      await result?.downloadPromise;
+      if (state.phase === 'checking') report('current');
     })().then(() => { if (state.phase !== 'error') attempts = 0; }).catch(fail).finally(() => { request = undefined; });
     return request;
+  }
+
+  function reconnect() {
+    if (isOnline()) return check(true);
+  }
+
+  function start() {
+    if (disposed || pollTimer) return;
+    void reconnect();
+    pollTimer = setInterval(() => { if (!retryTimer) void reconnect(); }, checkInterval);
+    pollTimer.unref();
   }
 
   function apply() {
@@ -73,7 +84,11 @@ function createAppUpdates({ updater, lookup, openExternal, publish, announce = (
     }
   }
 
-  return { get state() { return state; }, check, apply, dispose() { disposed = true; clearTimeout(retryTimer); } };
+  return { get state() { return state; }, start, check, reconnect, apply, dispose() {
+    disposed = true;
+    clearInterval(pollTimer);
+    clearTimeout(retryTimer);
+  } };
 }
 
 module.exports = { createAppUpdates };
