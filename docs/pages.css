@@ -1,0 +1,85 @@
+:root {
+  color-scheme: dark light;
+  font-family: "Segoe UI Variable", "Segoe UI", sans-serif;
+  background: #0e0f12;
+  color: #f3f4f8;
+  --muted: #a7aab7;
+  --surface: #171920;
+  --line: #2a2d37;
+  --accent: #8ca6ff;
+  --button: #3d60d7;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    background: #f5f6fa;
+    color: #171a23;
+    --muted: #555a6b;
+    --surface: #fff;
+    --line: #dce0eb;
+    --accent: #2548bd;
+    --button: #3153ca;
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: inherit; text-underline-offset: 4px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+
+.site-header, main, footer {
+  width: min(100% - 40px, 1060px);
+  margin-inline: auto;
+}
+
+.site-header, footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding-block: 20px;
+}
+
+.site-header { justify-content: space-between; border-bottom: 1px solid var(--line); }
+.site-header nav { display: flex; flex-wrap: wrap; gap: 16px 24px; }
+.brand img { display: block; object-fit: contain; }
+
+nav a, footer a { color: var(--muted); font-size: .9rem; text-decoration: none; }
+nav a:hover, footer a:hover { color: currentColor; text-decoration: underline; }
+
+.hero { padding-top: clamp(38px, 7vw, 90px); }
+h1 { font-size: clamp(2.4rem, 7vw, 5rem); line-height: 1; letter-spacing: -.06em; margin: 0; }
+p { color: var(--muted); line-height: 1.55; }
+.hero p { margin-block: 18px 24px; }
+
+.download {
+  display: inline-block;
+  padding: 12px 19px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--button);
+  text-decoration: none;
+  font-weight: 650;
+}
+
+.download:hover { background: color-mix(in srgb, var(--button), #071540 16%); }
+.preview { display: block; margin-top: 32px; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
+.preview img { display: block; width: 100%; height: auto; }
+
+.community {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px 32px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-block: 28px;
+  padding: clamp(16px, 3vw, 26px);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.community h2 { margin: 0 0 6px; font-size: 1.25rem; }
+.community p { margin: 0; }
+#community-status { color: var(--accent); font-size: .9rem; font-weight: 650; }
+footer { border-top: 1px solid var(--line); padding-block: 22px 36px; }

@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="#установка">Установка и ZIP</a> · <a href="#скриншоты">Скриншоты</a> · <a href="#статистика-проекта">Статистика</a> · <a href="#участие-в-проекте">Участие в проекте</a> · <a href="docs/support.md#поддержать-nova">Поддержать NOVA</a> · <a href="README.md">English</a>
+  <a href="https://delorean-bot.github.io/NOVA/?lang=ru">Сайт</a> · <a href="#установка">Установка и ZIP</a> · <a href="#скриншоты">Скриншоты</a> · <a href="#статистика-проекта">Статистика</a> · <a href="#участие-в-проекте">Участие в проекте</a> · <a href="docs/support.md#поддержать-nova">Поддержать NOVA</a> · <a href="README.md">English</a>
 </p>
 
 [![Главная страница NOVA с подборкой и рекомендациями. Нажмите, чтобы увеличить.](docs/screenshots/overview-dark.png)](docs/screenshots/overview-dark.png)

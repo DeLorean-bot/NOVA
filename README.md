@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="#install">Install or run from ZIP</a> · <a href="#screenshots">Screenshots</a> · <a href="#project-activity">Activity</a> · <a href="#contribute">Contribute</a> · <a href="docs/support.md">Support NOVA</a> · <a href="README.ru.md">Русский</a>
+  <a href="https://delorean-bot.github.io/NOVA/?lang=en">Website</a> · <a href="#install">Install or run from ZIP</a> · <a href="#screenshots">Screenshots</a> · <a href="#project-activity">Activity</a> · <a href="#contribute">Contribute</a> · <a href="docs/support.md">Support NOVA</a> · <a href="README.ru.md">Русский</a>
 </p>
 
 [![NOVA home screen with a featured film and a recommendation shelf. Click to enlarge.](docs/screenshots/overview-dark.png)](docs/screenshots/overview-dark.png)

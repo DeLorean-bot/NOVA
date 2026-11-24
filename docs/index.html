@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="NOVA — каталог фильмов и сериалов для Windows с открытым исходным кодом.">
+  <link rel="icon" href="nova-mark-light.png">
+  <link rel="stylesheet" href="pages.css">
+  <script src="pages.js" defer></script>
+  <title>NOVA — каталог фильмов и сериалов</title>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="NOVA">
+      <picture>
+        <source media="(prefers-color-scheme: light)" srcset="nova-wordmark-light.png">
+        <img src="nova-wordmark-dark.png" alt="NOVA" width="116" height="31">
+      </picture>
+    </a>
+    <nav aria-label="Навигация" data-copy="nav">
+      <a href="#community" data-copy="community">Рейтинг сообщества</a>
+      <a href="https://github.com/DeLorean-bot/NOVA">GitHub</a>
+      <a id="language" href="?lang=en" hreflang="en" lang="en">English</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1 data-copy="heading">Фильмы и сериалы<br>в одном окне</h1>
+      <p data-copy="intro">Каталог для Windows с открытым исходным кодом.</p>
+      <a class="download" href="https://github.com/DeLorean-bot/NOVA/releases/latest" data-copy="download">Скачать для Windows</a>
+      <a class="preview" href="screenshots/overview-dark.png">
+        <img src="screenshots/overview-dark.png" alt="Главная NOVA с подборкой фильмов и сериалов" data-copy="screenshot">
+      </a>
+    </section>
+
+    <section class="community" id="community" aria-labelledby="community-title">
+      <div>
+        <h2 id="community-title" data-copy="community">Рейтинг сообщества</h2>
+        <p data-copy="sharing">Делиться оценками можно в настройках NOVA. Там же можно отозвать свои голоса.</p>
+      </div>
+      <p id="community-status" role="status" data-status="waiting" data-copy="waiting">Проверяем подключение рейтинга…</p>
+    </section>
+  </main>
+
+  <footer>
+    <a href="https://github.com/DeLorean-bot/NOVA/releases" data-copy="releases">Все версии</a>
+    <a href="https://github.com/DeLorean-bot/NOVA/issues" data-copy="issues">Сообщить о проблеме</a>
+    <a href="https://github.com/DeLorean-bot/NOVA/blob/main/docs/support.md" data-copy="support">Поддержать NOVA</a>
+  </footer>
+</body>
+</html>
