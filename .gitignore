@@ -12,3 +12,4 @@ test-results/
 .env*
 AGENTS.md
 skills-lock.json
+community.sqlite*

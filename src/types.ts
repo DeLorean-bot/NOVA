@@ -40,7 +40,11 @@ export type AppState = {
   theme: 'light' | 'dark'; motion: boolean; glassBackground: boolean; sidebarCollapsed: boolean; immersive: boolean; fullscreen: boolean;
   taste: Taste;
   scores: Record<number, TitleScore>;
+  community?: CommunityPreferences;
 }
+export type CommunityPreferences = { configured: boolean; consent: boolean | null; invited: boolean; pending: boolean }
+export type CommunityRating = { id: number; average: number; count: number }
+export type CommunityTitle = { movie: Movie; rating: CommunityRating }
 export type PlayerBounds = { x: number; y: number; width: number; height: number }
 export type TitleScore = { movie: Movie; value: number }
 export type Taste = { liked: Movie[]; disliked: Movie[]; hidden: Movie[]; genres: string[]; blockedGenres: string[]; seen: number[] }
@@ -85,6 +89,11 @@ export type API = {
   trailerPreview(movie: Movie | null, rect?: PlayerBounds): Promise<string | null>;
   trailerPreviewBounds(id: string, rect: PlayerBounds): Promise<void>;
   scoreTitle(id: number, score: number | null): Promise<void>;
+  communityTop(): Promise<CommunityTitle[]>;
+  communityRating(id: number): Promise<CommunityRating | null>;
+  setCommunityConsent(value: boolean): Promise<void>;
+  dismissCommunityInvitation(): Promise<void>;
+  reconnectCommunity(): Promise<void>;
   open(url: string): Promise<string>; home(): Promise<void>; tab(id: string): Promise<void>; closeTab(id: string): Promise<void>;
   bounds(rect: { x: number; y: number; width: number; height: number }): Promise<void>;
   conceal(value: boolean): Promise<string | null>; navigate(action: string, address?: string): Promise<void>; watch(movie: Movie): Promise<string>;

@@ -9,4 +9,10 @@ function normalViewBounds(rect) {
 function shouldShowEmbeddedView(viewId, activeId, concealed) {
   return Boolean(activeId && viewId === activeId && !concealed);
 }
-module.exports = { normalViewBounds, shouldShowEmbeddedView };
+function isPlayerDoubleClick(input, bounds) {
+  return input.button === 'left' && input.clickCount === 2 &&
+    input.x >= bounds.width * .2 && input.x <= bounds.width * .8 &&
+    input.y > Math.max(52, bounds.height * .12) &&
+    input.y < bounds.height - Math.max(74, bounds.height * .12);
+}
+module.exports = { normalViewBounds, shouldShowEmbeddedView, isPlayerDoubleClick };

@@ -259,3 +259,5 @@ img { -webkit-user-drag: none; user-select: none; }
 @media(forced-colors:active),(prefers-reduced-transparency:reduce) { .settings-dialog,.taste-dialog,.search-dialog,.select-menu,.feedback-toast,.app-backdrop > .sidebar { background: var(--panel); backdrop-filter: none; -webkit-backdrop-filter: none; } }
 @supports not (backdrop-filter:blur(1px)) { .settings-dialog,.taste-dialog,.search-dialog,.select-menu,.feedback-toast { background: var(--panel); } }
 @media(prefers-contrast:more) { .catalog-topbar .searchbox.lg-surface { background: var(--panel) !important; outline: 1px solid currentColor; } }
+.community-settings { margin-top: 18px; }
+.community-setting-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }

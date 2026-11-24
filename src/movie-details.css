@@ -53,3 +53,6 @@
 @media(prefers-reduced-motion:reduce) { .movie-detail { animation: none; } }
 @media(forced-colors:active),(prefers-reduced-transparency:reduce) { .movie-detail { background: var(--panel); backdrop-filter: none; } }
 @supports not (backdrop-filter:blur(1px)) { .movie-detail { background: var(--panel); } }
+.detail-personal-score { margin-top: 12px; }
+.movie-rating.community-rating { cursor: default; }
+.community-rating-logo { color: var(--accent); font-size: 16px; font-weight: 700; }

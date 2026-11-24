@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { normalViewBounds, shouldShowEmbeddedView } = require('../electron/view-layout.cjs');
+const { normalViewBounds, shouldShowEmbeddedView, isPlayerDoubleClick } = require('../electron/view-layout.cjs');
 
 test('video follows the full-width workspace below the top navigation', () => {
   for (const x of [16, 20.4, 24.6, 32, 64]) {
@@ -27,4 +27,13 @@ test('opening navigation or search conceals even the active fullscreen video unt
   assert.equal(shouldShowEmbeddedView('player-1','player-1',false),true);
   assert.equal(shouldShowEmbeddedView('player-2','player-1',false),false);
   assert.equal(shouldShowEmbeddedView('player-1',null,false),false);
+});
+
+test('double-click fullscreen applies to the video centre and preserves player controls', () => {
+  const bounds = { x: 16, y: 204, width: 1408, height: 720 };
+  const click = { x: 700, y: 350, button: 'left', clickCount: 2 };
+  assert.equal(isPlayerDoubleClick(click, bounds), true);
+  for (const change of [{ y: 34 }, { y: 697 }, { x: 150 }, { button: 'right' }, { clickCount: 1 }]) {
+    assert.equal(isPlayerDoubleClick({ ...click, ...change }, bounds), false);
+  }
 });

@@ -27,6 +27,32 @@ async function videoFacts(wc) {
   const { cues, ...facts } = video;
   return { ...facts, scene: sceneMetadata(cues) };
 }
+
+async function captureVideoFrame(webContents, time) {
+  if (webContents.isDestroyed() || !Number.isFinite(time)) return '';
+  const script = `(() => {
+    const video = [...document.querySelectorAll('video')]
+      .filter(v => v.paused && !v.seeking && v.readyState >= 2 && v.videoWidth && Math.abs(v.currentTime - ${time}) < 0.15)
+      .sort((a, b) => b.videoWidth * b.videoHeight - a.videoWidth * a.videoHeight)[0];
+    if (!video) return '';
+    try {
+      const scale = Math.min(1, 800 / Math.max(video.videoWidth, video.videoHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', .92);
+    } catch { return ''; }
+  })()`;
+  let timer;
+  const timeout = new Promise(resolve => { timer = setTimeout(() => resolve([]), 1000); timer.unref(); });
+  try {
+    const reads = webContents.mainFrame.framesInSubtree.map(frame => frame.executeJavaScript(script));
+    const results = await Promise.race([Promise.allSettled(reads), timeout]);
+    return results.map(result => result.value).find(value => typeof value === 'string' &&
+      value.length < 2_000_000 && value.startsWith('data:image/jpeg;base64,')) || '';
+  } finally { clearTimeout(timer); }
+}
 function sceneMetadata(cues) {
   const actors = new Map(), tracks = new Map();
   const text = value => typeof value === 'string' ? value.trim().slice(0, 160) : '';
@@ -85,4 +111,4 @@ function watchProgress(item, previous, current, elapsed, now = Date.now()) {
   const coverage = merged.reduce((seconds,[start,end]) => seconds + end-start,0);
   return { ...item, ...progress, watchedRanges: merged.slice(-300), watchedDuration: duration, completed: coverage >= duration * .85 };
 }
-module.exports = { VIDEO_PROBE, videoFacts, playedDelta, watchProgress, sceneMetadata };
+module.exports = { VIDEO_PROBE, videoFacts, captureVideoFrame, playedDelta, watchProgress, sceneMetadata };

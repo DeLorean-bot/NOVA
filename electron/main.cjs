@@ -1,12 +1,13 @@
 const {createNativeMenus}=require('./native-menu.cjs');
 const { createAppearanceStore } = require('./appearance.cjs');
 const { readProfile, patchProfile } = require('./profile.cjs');
-const { normalViewBounds, shouldShowEmbeddedView } = require('./view-layout.cjs');
-const { app, BrowserWindow, WebContentsView, ipcMain, session, shell, Menu, webFrameMain, globalShortcut, Notification, screen, nativeImage, nativeTheme, net } = require('electron');
+const { normalViewBounds, shouldShowEmbeddedView, isPlayerDoubleClick } = require('./view-layout.cjs');
+const { app, BrowserWindow, WebContentsView, ipcMain, session, shell, Menu, webFrameMain, globalShortcut, Notification, screen, nativeImage, nativeTheme, net, protocol } = require('electron');
 const englishMessages = require('./locales/en.json');
 const { resolveLanguage } = require('./language.cjs');
 const { checkForUpdate } = require('./releases-update.cjs');
 const { createAppUpdates } = require('./app-updates.cjs');
+const { createCommunity, discoverCommunity } = require('./community.cjs');
 const path = require('node:path');
 const { existsSync } = require('node:fs');
 const fs = require('node:fs/promises');
@@ -18,6 +19,7 @@ const { plotWords, findPlotMovies } = require('./plot-search.cjs');
 const { chromiumFetch } = require('./network.cjs');
 const { videoFacts, playedDelta, watchProgress } = require('./playback.cjs');
 const { createPauseScene, pausedFrame } = require('./pause-scene.cjs');
+const { createSceneCast, loadScenePortrait, personKey } = require('./scene-cast.cjs');
 const { castQuery, castCredits } = require('./cast-credits.cjs');
 const { createUpcoming } = require('./upcoming.cjs');
 const { releaseTransition, dismissReleaseNotices } = require('./releases.cjs');
@@ -27,6 +29,9 @@ const { createRecommendationSource } = require('./recommendation-source.cjs');
 const { cleanTaste, rateMovie, GENRES } = require('./taste.cjs');
 const {trailerDestination}=require('./trailers.cjs');
 const {createPosterStatus}=require('./posters.cjs');
+protocol.registerSchemesAsPrivileged([{ scheme: 'nova-cast-model', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
+const sceneCast = createSceneCast(chromiumFetch);
+const scenePortraits = new Map();
 const ratingsFor = createRatings(async url => {
   const response = await chromiumFetch(url, { signal: AbortSignal.timeout(10000), headers: { Accept: 'application/json, text/html' } });
   if (!response.ok) throw new Error('Рейтинги временно недоступны');
@@ -50,7 +55,7 @@ let state = { profile: readProfile(null, nativeImage.createFromDataURL), favorit
 let language = 'ru';
 let languageMode = 'system';
 let languageWrite = Promise.resolve();
-let appUpdates, updateTimer, desktopUpdateNotice;
+let appUpdates, updateTimer, desktopUpdateNotice, community, communityTimer, communityDiscovery;
 let playerSessionReady;
 const uiText = (message, ...values) => {
   const template = language === 'en' && Object.hasOwn(englishMessages, message) ? englishMessages[message] : message;
@@ -222,9 +227,19 @@ function tabState(t) {
 }
 
 function snapshot() {
-  return { ...state, tabs: [...tabs.values()].filter(tab => !tab.preview).map(tabState), active, source: SOURCE, immersive: immersive(), fullscreen: Boolean(win && !win.isDestroyed() && win.isFullScreen()) };
+  return { ...state, community: community?.state, tabs: [...tabs.values()].filter(tab => !tab.preview).map(tabState), active, source: SOURCE, immersive: immersive(), fullscreen: Boolean(win && !win.isDestroyed() && win.isFullScreen()) };
 }
 function emit() { if (win && !win.isDestroyed()) win.webContents.send('kadr:state', snapshot()); }
+
+function connectCommunity() {
+  if (community.state.configured) {
+    clearInterval(communityTimer);
+    void community.flush();
+  } else if (!testProfile && !communityDiscovery && net.isOnline()) {
+    communityDiscovery = discoverCommunity(chromiumFetch).then(origin => community.configure(origin)).catch(() => {})
+      .finally(() => { communityDiscovery = null; if (community.state.configured) clearInterval(communityTimer); });
+  }
+}
 function immersive() {
   const tab = tabs.get(active);
   return Boolean(win && !win.isDestroyed() && win.isFullScreen() && tab && (tab.kind === 'player' || tab.htmlFullscreen));
@@ -326,18 +341,67 @@ function pauseSceneContext() {
     return null;
   }
   const frame = tab.pausedFrame;
-  const cast = knownMovies.get(tab.movie.id)?.actors || tab.movie.actors || '';
-  const actors = frame.actors.length ? frame.actors.map(actor => ({ name: actor.name, detail: actor.role, image: actor.image }))
-    : cast.split(',').map(name => name.trim()).filter(Boolean).slice(0, 3).map(name => ({ name }));
+  const actors = (tab.sceneScan?.actors ?? frame.actors).map(actor => ({ name: actor.name, detail: actor.role, image: actor.image }));
   return { id: tab.id, view: tab.view, model: {
     language, theme: state.theme, motion: state.motion, time: Math.floor(frame.time), actors,
     tracks: frame.tracks.map(track => ({ name: track.title, detail: track.artist, image: track.image })),
     labels: {
-      pause: uiText('На паузе'), actors: uiText(frame.actors.length ? 'Актёры в кадре' : 'В ролях'),
-      music: uiText('Музыка в сцене'), noActors: uiText('Нет данных об актёрах в этой сцене'),
+      pause: uiText('На паузе'), actors: uiText('Актёры в кадре'),
+      music: uiText('Музыка в сцене'), noActors: uiText(tab.sceneScan?.pending ? 'Определяем актёров в кадре…' : 'Нет данных об актёрах в этой сцене'),
       noMusic: uiText('Трек для этой сцены не указан'),
     },
   } };
+}
+
+function scenePortrait(url) {
+  if (scenePortraits.has(url)) return scenePortraits.get(url);
+  const result = loadScenePortrait(chromiumFetch, nativeImage, url).then(image => {
+    if (!image && scenePortraits.get(url) === result) scenePortraits.delete(url);
+    return image;
+  });
+  if (scenePortraits.size >= 48) scenePortraits.delete(scenePortraits.keys().next().value);
+  scenePortraits.set(url, result);
+  return result;
+}
+
+async function identifyPausedActors(tab, frame, request) {
+  const view = tab.view;
+  const current = () => active === tab.id && tab.view === view && tab.sceneScan === request && !concealed;
+  try {
+    let movie = { ...tab.movie, ...knownMovies.get(tab.movie.id) };
+    if (!movie.original || !movie.year) {
+      const details = await sourceSearch(String(movie.id)).catch(() => null);
+      if (details?.movies[0]) movie = { ...movie, ...details.movies[0] };
+    }
+    if (!current()) return;
+    const cast = await sceneCast(movie);
+    if (!current()) return;
+    if (frame.actors.length) {
+      request.actors = frame.actors.map(actor => {
+        const key = personKey(actor.name);
+        const matches = cast.filter(person => [person.name, person.localized].some(name => personKey(name) === key));
+        const credit = matches.length === 1 ? matches[0] : null;
+        return { ...actor, role: actor.role || credit?.role, image: actor.image || credit?.photos[0] };
+      });
+      return;
+    }
+    const candidates = cast.filter(actor => actor.photos.length).slice(0, 12);
+    const references = (await Promise.all(candidates.map(async (actor, index) => {
+      const photos = await Promise.all(actor.photos.map(async id => ({ id, index, source: await scenePortrait(id) })));
+      return photos.filter(item => item.source);
+    }))).flat();
+    if (!references.length || !current()) return;
+    const indices = await pauseScene.recognize(view, frame.time, references, current);
+    if (current()) request.actors = indices.flatMap(index => {
+      const person = candidates[index];
+      if (!person) return [];
+      return [{ name: language === 'ru' && person.localized ? person.localized : person.name,
+        role: person.role, image: references.find(item => item.index === index)?.source }];
+    });
+  } catch {} finally {
+    request.pending = false;
+    if (current()) pauseScene?.sync();
+  }
 }
 
 function showPausedFrame(tab, facts) {
@@ -353,13 +417,21 @@ function showPausedFrame(tab, facts) {
     tab.warningTimer = setTimeout(() => pauseScene?.sync(), 5500);
     tab.warningTimer.unref();
   }
-  pauseScene?.sync();
-  if (!tab.pausedFrame) return;
-  if (!pauseProbeTimer && !concealed) schedulePauseProbe(tab, 650);
-  if (!tab.pausedFrame.actors.length && !tab.movie.actors && !knownMovies.get(tab.movie.id)?.actors && !tab.lookedUpPauseCast) {
-    tab.lookedUpPauseCast = true;
-    void sourceSearch(String(tab.movie.id)).then(() => pauseScene?.sync()).catch(() => {});
+  const frame = tab.pausedFrame;
+  if (!frame) {
+    tab.sceneScan = undefined;
+    pauseScene?.sync();
+    return;
   }
+  const key = JSON.stringify([frame.time, facts.frames, frame.actors]);
+  if (tab.sceneScan?.key !== key) {
+    tab.sceneScan = { key, pending: !frame.actors.length || frame.actors.some(actor => !actor.image || !actor.role) };
+    if (tab.sceneScan.pending) {
+      void identifyPausedActors(tab, frame, tab.sceneScan);
+    }
+  }
+  pauseScene?.sync();
+  if (!pauseProbeTimer && !concealed) schedulePauseProbe(tab, 650);
 }
 
 function schedulePauseProbe(tab, delay = 90) {
@@ -377,7 +449,7 @@ function schedulePauseProbe(tab, delay = 90) {
 }
 
 function clearPausedFrame(tab) {
-  if (tab) tab.pausedFrame = null;
+  if (tab) { tab.pausedFrame = null; tab.sceneScan = undefined; }
   if (tab && tab.id !== active) return;
   pauseRevision++;
   clearTimeout(pauseProbeTimer);
@@ -591,7 +663,14 @@ function attachRemoteView(t) {
   t.view = view;
   win.contentView.addChildView(view);
   const wc = view.webContents;
-  wc.on('before-mouse-event', (_event, input) => { if (input.type === 'mouseDown') nativeMenus?.close(null,false); });
+  if (kind === 'player') wc.setZoomMode('disabled');
+  wc.on('before-mouse-event', (event, input) => {
+    if (input.type === 'mouseDown') nativeMenus?.close(null, false);
+    if (kind !== 'player' || active !== id || concealed || !['mouseDown', 'mouseUp'].includes(input.type) ||
+        !isPlayerDoubleClick(input, view.getBounds())) return;
+    event.preventDefault();
+    if (input.type === 'mouseDown') toggleFullscreen();
+  });
   // Keep the renderer's UA and the network UA identical and ASCII-only.
   // Embedded CDN requests failed with the original app UA and succeeded
   // with a browser-compatible UA in the playback integration check.
@@ -810,16 +889,33 @@ function registerHandlers() {
     return { ...movie, ...result, cover: movie.cover || knownMovies.get(movie.id)?.cover || '' };
   });
   handle('ratings', (imdbId, type) => ratingsFor(String(imdbId), type));
+  handle('community-top', async () => {
+    const ratings = await community.top();
+    if (!ratings.length) return [];
+    const blocked = await restrictions();
+    const entries = await Promise.all(ratings.filter(({ id }) => !blocked.has(id)).map(async rating => {
+      const movie = knownMovies.get(rating.id) || state.scores[rating.id]?.movie ||
+        (await sourceSearch(String(rating.id)).catch(() => null))?.movies.find(movie => movie.id === rating.id);
+      return movie ? { movie, rating } : null;
+    }));
+    return entries.filter(Boolean);
+  });
+  handle('community-rating', id => community.rating(movieId(id)));
+  handle('community-consent', consent => community.setConsent(consent));
+  handle('community-dismiss-invitation', () => community.dismissInvitation());
+  handle('community-reconnect', connectCommunity);
   handle('score-title', async (value, score) => {
     const id = movieId(value);
     if (score === null) delete state.scores[id];
     else {
       if (!Number.isInteger(score) || score < 1 || score > 10) throw new Error('Оценка должна быть от 1 до 10');
-      const movie = state.scores[id]?.movie || state.history.find(movie => movie.id === id) || knownMovies.get(id);
+      const movie = state.scores[id]?.movie || knownMovies.get(id) || state.history.find(movie => movie.id === id) ||
+        state.favorites.find(movie => movie.id === id) || state.releases.find(movie => movie.id === id);
       if (!movie) throw new Error('Фильм не найден');
       state.scores[id] = { movie: cleanMovie(movie), value: score };
     }
     await save(); emit();
+    void community.changed().catch(() => {});
   });
   handle('trailer-preview', async (input, rect) => {
     const owner = tabs.get(active);
@@ -1056,6 +1152,16 @@ async function createWindow() {
     const saved = JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'language.json'), 'utf8'));
     if (saved === 'ru' || saved === 'en') languageMode = saved;
   } catch {}
+  const communityFile = path.join(app.getPath('userData'), 'community.json');
+  community = createCommunity({ origin: process.env.NOVA_COMMUNITY_URL || require('../package.json').novaCommunityUrl,
+    scores: () => state.scores, fetch: chromiumFetch, publish: emit, storage: {
+      read: async () => { try { return JSON.parse(await fs.readFile(communityFile, 'utf8')); } catch { return null; } },
+      write: async value => {
+        await fs.writeFile(communityFile + '.tmp', JSON.stringify(value), 'utf8');
+        await fs.rename(communityFile + '.tmp', communityFile);
+      },
+    },
+  });
   language = resolveLanguage(languageMode, app.getPreferredSystemLanguages());
   try {
     const saved = JSON.parse(await fs.readFile(dataFile, 'utf8'));
@@ -1075,6 +1181,7 @@ async function createWindow() {
     state.releases = (saved.releases || []).flatMap(m => { try { return [{ ...cleanMovie(m), addedAt: String(m.addedAt || ''), available: typeof m.available === 'boolean' ? m.available : null, checkedAt: String(m.checkedAt || ''), availableAt: String(m.availableAt || ''), unread: m.unread === true, noticeDismissed: m.noticeDismissed === true }]; } catch { return []; } }).slice(0, 50);
     state.sites = (saved.sites || []).flatMap(s => { try { return [{ id: String(s.id), name: String(s.name).slice(0, 50), url: webUrl(s.url) }]; } catch { return []; } }).slice(0, 20);
   } catch {}
+  await community.load().catch(() => {});
   try {
     const cache = JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'restrictions.json'), 'utf8'));
     if (Array.isArray(cache.ids) && Number.isFinite(cache.at)) { blacklist = new Set(cache.ids); blacklistTime = cache.at; }
@@ -1152,6 +1259,11 @@ async function createWindow() {
     updateTimer.unref();
   }
   await win.loadFile(localPage);
+  if (!testProfile && !community.state.configured) {
+    communityTimer = setInterval(connectCommunity, 10 * 60 * 1000);
+    communityTimer.unref();
+    connectCommunity();
+  }
   playbackTimer = setInterval(pollPlayback, 4000); playbackTimer.unref();
   releasesTimer = setInterval(() => checkReleases().catch(() => {}), 30 * 60 * 1000); releasesTimer.unref();
   checkReleases().catch(() => {});
@@ -1187,5 +1299,5 @@ else {
   });
   app.whenReady().then(async () => { registerHandlers(); await createWindow(); });
   app.on('window-all-closed', () => app.quit());
-  app.on('before-quit', event => { clearInterval(playbackTimer); clearInterval(releasesTimer); clearInterval(updateTimer); appUpdates?.dispose(); if (writeQueue) { event.preventDefault(); const pending = save(); writeQueue = null; Promise.allSettled([pending, languageWrite, appearanceStore?.flush()]).then(() => app.quit()); } });
+  app.on('before-quit', event => { clearInterval(playbackTimer); clearInterval(releasesTimer); clearInterval(updateTimer); clearInterval(communityTimer); appUpdates?.dispose(); community?.close(); if (writeQueue) { event.preventDefault(); const pending = save(); writeQueue = null; Promise.allSettled([pending, languageWrite, appearanceStore?.flush()]).then(() => app.quit()); } });
 }

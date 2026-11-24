@@ -1,7 +1,7 @@
 {
   "name": "kadr-desktop",
   "productName": "NOVA",
-  "version": "0.8.21",
+  "version": "0.8.22",
   "description": "Фильмы и сериалы в одном окне",
   "author": "NOVA",
   "private": true,
@@ -12,12 +12,14 @@
     "build": "vite build",
     "test": "node --test tests/*.test.cjs",
     "check": "tsc --noEmit",
+    "community": "node community/server.cjs",
     "pack": "npm run build && electron-builder --win --dir",
     "dist": "npm run build && electron-builder --win"
   },
   "dependencies": {
     "@fontsource-variable/geologica": "^5.3.0",
     "@glass-sdk/liquid-glass": "~0.0.2",
+    "@vladmandic/face-api": "1.7.15",
     "dictionary-ru": "3.0.0",
     "electron-updater": "6.8.11",
     "lucide-react": "0.468.0",

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.22
+
+- Double-clicking the video uses NOVA's fullscreen layout and keeps player controls at their regular size.
+- The pause panel can identify actors from the current frame using local recognition. It shows actor portraits and uses scene or music information when available.
+- Added optional community ratings and a home shelf. NOVA enables them once a community server is configured. Sharing requires consent and can be revoked in Settings.
+
 ## 0.8.2
 
 - English and Russian interface languages, switchable in Settings.

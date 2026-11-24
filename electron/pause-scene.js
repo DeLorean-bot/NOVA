@@ -46,7 +46,7 @@ function drawSection(title, cards, emptyText, symbol) {
   return section;
 }
 
-window.renderPauseScene = ({ language, theme, motion, time, actors, tracks, labels, compact, variant, age, warnings, label }) => {
+window.renderPauseScene = ({ language, theme, motion, time, actors, tracks, labels, compact, maxCast, variant, age, warnings, label }) => {
   document.documentElement.lang = language;
   document.documentElement.dataset.theme = theme;
   document.documentElement.dataset.motion = motion ? 'on' : 'off';
@@ -68,7 +68,7 @@ window.renderPauseScene = ({ language, theme, motion, time, actors, tracks, labe
   const header = element('header');
   header.append(element('span', labels.pause), element('time', parts.join(':')));
   panel.replaceChildren(texture, header,
-    drawSection(labels.actors, actors.slice(0, compact ? 1 : 3), labels.noActors),
+    drawSection(labels.actors, actors.slice(0, maxCast), labels.noActors),
     drawSection(labels.music, tracks.slice(0, compact ? 1 : 2), labels.noMusic, '♪'));
   return panel.offsetHeight + 4;
 };

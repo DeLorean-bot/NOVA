@@ -5,13 +5,14 @@ import { CountryFilter } from './CountryFilter'
 import { PosterHover } from './PosterHover'
 import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type CSSProperties } from 'react'
 import { Bell, ArrowDown, ArrowLeft, ArrowRight, Bookmark, Collection, Check, ChevronRight, Clapperboard, Clock3, ExternalLink, Film, Globe2, House, Info, Maximize2, Play, Plus, RotateCw, Search, Settings2, Settings, Trash2, Tv, X, TrendingUp, CalendarDays } from './icons'
-import type { AppState, Movie, RemoteTab, SceneInfo, SearchPhase } from './types'
+import type { AppState, CommunityRating, Movie, RemoteTab, SceneInfo, SearchPhase } from './types'
 import { useCatalogNavigation, type Section } from './useCatalogNavigation'
 import { SelectionHighlight } from './SelectionHighlight'
 import { AppNavigation, CatalogLayoutToggle, SectionNavigation, PremiereNavigation, FormatTabs, PageFrame, type CatalogLayout } from './AppNavigation'
 import { visitPanel, type PanelPage, type NavigationGroup } from './navigation-model'
 import { useInputModality } from './useInputModality'
 import { useConnectionRetry } from './useConnectionRetry'
+import { useCommunity } from './useCommunity'
 import type { CatalogPosition } from './CatalogScene'
 import { useAppearance } from './useAppearance'
 import { version } from '../package.json'
@@ -67,6 +68,7 @@ export default function App() {
   const [update, setUpdate] = useState<import('./types').UpdateStatus>({ phase: 'idle' })
   const [dismissedUpdate, setDismissedUpdate] = useState('')
   const [updateFocus, setUpdateFocus] = useState(0)
+  const [communityFocus, setCommunityFocus] = useState(0)
   const { section, group, startSearch, navigate: setSection, navigateGroup, back, forward, query, filter, genre, sort, year, regions, setFilter, setGenre, setSort, setYear, setRegions } = useCatalogNavigation()
   const [excludedCountries, setExcludedCountries] = useState<string[]>([])
   const [catalogLayout, setCatalogLayout] = useState<CatalogLayout>(() => localStorage.getItem('nova.catalog-layout') === 'list' ? 'list' : 'grid')
@@ -96,7 +98,9 @@ export default function App() {
   const backPanel = () => setPanelHistory(old => old.slice(0, -1))
   const [releaseTab, setReleaseTab] = useState<'calendar' | 'following'>('calendar')
   const [detail, setDetail] = useState<Movie | null>(null)
-  const [notification, setNotification] = useState<{ id: number; message?: string; feedback?: import('./types').FeedbackNotice } | null>(null)
+  const [notification, setNotification] = useState<{ id: number; message?: string; feedback?: import('./types').FeedbackNotice; action?: { label: string; run: () => Promise<void> } } | null>(null)
+  const [showCommunityInvitation, setShowCommunityInvitation] = useState(false)
+  const invitedThisSession = useRef(false)
   const nextNotification = useRef(0)
   const [selectOpen, setSelectOpen] = useState(false)
   const [unsafeMenu, setUnsafeMenu] = useState(false)
@@ -115,15 +119,28 @@ export default function App() {
 
 
 
-  const notify = useCallback((message: string) => {
-    setNotification({ id: ++nextNotification.current, message })
+  const notify = useCallback((message: string, action?: { label: string; run: () => Promise<void> }) => {
+    setNotification({ id: ++nextNotification.current, message, action })
   }, [])
   const openUpdates = useCallback(() => {
     setSearchOpen(false)
     setDetail(null)
     setCompanion(null)
     setPanelHistory(previous => visitPanel(previous, 'settings'))
+    setCommunityFocus(0)
     setUpdateFocus(previous => previous + 1)
+  }, [])
+  const openCommunity = useCallback(async () => {
+    setSearchOpen(false)
+    setDetail(null)
+    setCompanion(null)
+    setUpdateFocus(0)
+    setPanelHistory(previous => visitPanel(previous, 'settings'))
+    setCommunityFocus(previous => previous + 1)
+  }, [])
+  const dismissCommunityInvitation = useCallback(() => {
+    setShowCommunityInvitation(false)
+    void api?.dismissCommunityInvitation().catch(() => {})
   }, [])
   const { appearance, toggleTheme, changeToggle } = useAppearance(INITIAL_APPEARANCE, notify)
   const state = useMemo(() => ({ ...snapshot, ...appearance }), [snapshot, appearance])
@@ -173,7 +190,7 @@ export default function App() {
     }
     const stopUpdate = api.onUpdateStatus(status => { receivedStatus = true; acceptUpdate(status) })
     const stopShowUpdates = api.onShowUpdates(openUpdates)
-    const reconnect = () => { void api.checkUpdate().catch(() => {}) }
+    const reconnect = () => { void api.checkUpdate().catch(() => {}); void api.reconnectCommunity().catch(() => {}) }
     window.addEventListener('online', reconnect)
     const stopSearchPhase = api.onSearchPhase((id, phase) => {
       if (id === searchRevision.current && id === searchInFlight.current) setSearchPhase(phase)
@@ -242,6 +259,13 @@ export default function App() {
   useLayoutEffect(() => { document.documentElement.dataset.theme = state.theme }, [state.theme])
   useLayoutEffect(() => { document.documentElement.dataset.motion = state.motion ? 'on' : 'off'; window.dispatchEvent(new Event('kadr:motion-change')) }, [state.motion])
   const remote = state.tabs.find(t => t.id === state.active)
+  const community = useCommunity(Boolean(startupDone && state.community?.configured && section === 'home' && !remote && !panel && !detail), Boolean(state.community?.pending))
+  useEffect(() => {
+    if (!community.available || invitedThisSession.current || !state.community?.configured || state.community.invited ||
+        state.community.consent !== null || section !== 'home' || remote || panel || detail || searchOpen) return
+    invitedThisSession.current = true
+    setShowCommunityInvitation(true)
+  }, [community.available, state.community, section, remote, panel, detail, searchOpen])
   const parkedPlayer = state.active === null ? state.tabs.find(tab => tab.kind === 'player') : undefined
   const picks = useRecommendations(state.history, state.favorites, profileReady && !remote && section === 'home' && !query.trim(),state.taste)
   const pageActive = Boolean(detail || companion || settingsOpen || tasteOpen || profileOpen)
@@ -427,7 +451,7 @@ export default function App() {
     void request?.then(scene => setCompanion(previous => previous?.movie.id === movie.id && !previous.finished ? { ...previous, scene } : previous)).catch(() => {})
   }
   const openProfile = () => openPanel('profile')
-  const openSettings = () => { setUpdateFocus(0); openPanel('settings') }
+  const openSettings = () => { setUpdateFocus(0); setCommunityFocus(0); openPanel('settings') }
   const openTaste = () => openPanel('taste')
   const goGroup = (next: NavigationGroup, instant = false) => { clearPages(); setNavigationInstant(instant); navigateGroup(next); if (state.active) perform(() => api!.home()) }
   const returnToCatalog = () => { clearPages(); perform(() => api!.home()) }
@@ -447,9 +471,12 @@ export default function App() {
       open={(id,title)=>showDetails(findMovie(id, 'film', title))}>
       {related.length > 0 && <section><h2>{t('Похожие фильмы и сериалы')}</h2><MovieGrid movies={related} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails}/></section>}
     </WatchExtras>
-  </PageFrame> : detail ? <PageFrame title={detail.title} parent={tasteOpen ? t("Мои оценки") : t(names[section])} back={()=>setDetail(null)}><Suspense fallback={<p role="status">{t("Загружаем описание…")}</p>}><MovieDetails key={detail.id} initial={detail} saved={favoriteIds.has(detail.id)} followed={state.releases.some(m=>m.id===detail.id)} busy={watching!==null} close={()=>setDetail(null)} watch={requestWatch} favorite={toggleFavorite} follow={m=>perform(()=>api!.followRelease(m))} notify={notify} taste={state.taste} rate={(m,a)=>perform(()=>api!.rateMovie(m,a))}/></Suspense></PageFrame>
+  </PageFrame> : detail ? <PageFrame title={detail.title} parent={tasteOpen ? t("Мои оценки") : t(names[section])} back={()=>setDetail(null)}><Suspense fallback={<p role="status">{t("Загружаем описание…")}</p>}><MovieDetails key={detail.id} initial={detail} saved={favoriteIds.has(detail.id)} followed={state.releases.some(m=>m.id===detail.id)} busy={watching!==null} close={()=>setDetail(null)} watch={requestWatch} favorite={toggleFavorite} follow={m=>perform(()=>api!.followRelease(m))} notify={notify} taste={state.taste} rate={(m,a)=>perform(()=>api!.rateMovie(m,a))} score={state.scores?.[detail.id]?.value} shareConfigured={Boolean(state.community?.configured)} sharePending={Boolean(state.community?.pending)} scoreTitle={(id,value)=>perform(()=>api!.scoreTitle(id,value))}/></Suspense></PageFrame>
     : tasteOpen ? <PageFrame title={t("Мои оценки")} parent={t('Моя NOVA')} back={backPanel}><Suspense fallback={<p role="status">{t("Загружаем оценки…")}</p>}><TasteDialog taste={state.taste} scores={state.scores} scoreTitle={(id,value)=>api!.scoreTitle(id,value)} detail={setDetail} rate={(m,a)=>api!.rateMovie(m,a)} clearGenre={g=>api!.tasteGenres(state.taste.genres,state.taste.blockedGenres.filter(genre=>genre!==g))}/></Suspense></PageFrame>
-    : settingsOpen ? <PageFrame title={t("Настройки")} parent={t('Моя NOVA')} back={backPanel}><Suspense fallback={<p role="status">{t("Открываем настройки…")}</p>}><SettingsDialog state={state} update={update} updateFocus={updateFocus} languageMode={languageMode} changeLanguage={changeLanguage} changeMotion={value=>changeToggle('motion', value)} changeBackground={value=>changeToggle('glassBackground', value)}/></Suspense></PageFrame>
+    : settingsOpen ? <PageFrame title={t("Настройки")} parent={t('Моя NOVA')} back={backPanel}><Suspense fallback={<p role="status">{t("Открываем настройки…")}</p>}><SettingsDialog state={state} update={update} updateFocus={updateFocus} communityFocus={communityFocus} changeCommunity={async value => {
+      await api!.setCommunityConsent(value)
+      if (value) notify(t('Обмен оценками включён. Его можно отключить в настройках.'), { label: t('Настройки'), run: openCommunity })
+    }} languageMode={languageMode} changeLanguage={changeLanguage} changeMotion={value=>changeToggle('motion', value)} changeBackground={value=>changeToggle('glassBackground', value)}/></Suspense></PageFrame>
     : profileOpen ? <PageFrame title={t("Профиль")} parent="" back={backPanel}><Suspense fallback={<p role="status">{t("Открываем профиль…")}</p>}><ProfilePage state={state} save={patch=>api!.updateProfile(patch)} collection={()=>go('favorites')} history={()=>go('history')} taste={openTaste} settings={openSettings}/></Suspense></PageFrame>
     : null
   const availableUpdate = update.phase === 'ready' || update.phase === 'downloading' || update.phase === 'external' ? update : null
@@ -494,6 +521,9 @@ export default function App() {
         </>}
 
         {showHero && <RecommendationShelf loading={picks.loading} error={picks.error} description={state.taste.liked.length ? t("По вашим просмотрам и оценкам") : state.history.some(m => (m.watchedSeconds || 0) >= 120) ? t("По тому, что вы смотрите") : t("Фильмы и сериалы для знакомства")} refresh={() => { picks.refresh(true,JSON.parse(exposure)); setHeroIndex(0) }}><MovieGrid eager={!startupDone} movies={shelfMovies} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails} /></RecommendationShelf>}
+        {showHero && community.titles.length > 0 && <RecommendationShelf community description={t('По оценкам сообщества NOVA')} refresh={community.refresh}>
+          <MovieGrid movies={community.titles.map(item => item.movie)} ratings={new Map(community.titles.map(item => [item.movie.id, item.rating]))} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails}/>
+        </RecommendationShelf>}
 
         {section !== 'home' && (unfilteredCount > 0 || isCatalog) && <div className="filterbar">
           {(query.trim() || newReleases || section === 'favorites' || section === 'history') && <FormatTabs value={filter} instant={navigationInstant} change={(value, instant) => { setNavigationInstant(instant); setFilter(value); setGenre('Все жанры') }}/>}
@@ -534,7 +564,10 @@ export default function App() {
 
     </GlassContent>
     {watching !== null && !detail && <div className="watch-progress" role="status"><RotateCw className="spin" size={17} /><div>{t("Ищем доступные плееры")}<span>{all.find(m => m.id === watching)?.title || t("Кинопоиск · {0}", watching)}</span></div></div>}
-    {startupDone && notification && <FeedbackToast key={notification.id} notice={notification.feedback} message={notification.message}
+    {startupDone && showCommunityInvitation && state.community?.consent === null && !notification && (!availableUpdate || updateKey === dismissedUpdate) && section === 'home' && !overlay && !remote && <FeedbackToast title={t('Выбор пользователей')}
+      message={t('Хотите учитывать свои оценки в рейтинге NOVA?')} duration={9000} close={dismissCommunityInvitation}
+      action={{ label: t('Настроить'), run: openCommunity }}/>}
+    {startupDone && notification && <FeedbackToast key={notification.id} notice={notification.feedback} message={notification.message} action={notification.action}
       close={() => setNotification(current => current?.id === notification.id ? null : current)}
       undo={notification.feedback?.undoToken ? () => api!.undoFeedback(notification.feedback!.undoToken!) : undefined}/>}
     {startupDone && !notification && !settingsOpen && !state.immersive && availableUpdate && updateKey && updateKey !== dismissedUpdate &&
@@ -598,22 +631,25 @@ function formatSeasons(count: number) {
   return `${count} ${n >= 11 && n <= 14 ? 'сезонов' : count % 10 === 1 ? 'сезон' : count % 10 >= 2 && count % 10 <= 4 ? 'сезона' : 'сезонов'}`
 }
 
-function MovieGrid({ movies, favorites, favorite, detail, showType = true, layout = 'grid', eager = false }: {
+function MovieGrid({ movies, favorites, favorite, detail, showType = true, layout = 'grid', eager = false, ratings }: {
   showType?: boolean; movies: Movie[]; favorites: Set<number>; layout?: CatalogLayout; eager?: boolean
+  ratings?: Map<number, CommunityRating>
   favorite: (movie: Movie) => void; detail: (movie: Movie) => void
 }) {
   return <div className="movie-grid" data-layout={layout}>{movies.map((movie, index) => <MovieCard key={movie.id} movie={movie}
     saved={favorites.has(movie.id)} showType={showType} list={layout === 'list'} eager={eager && index < 12}
-    favorite={favorite} detail={detail}/>)}</div>
+    favorite={favorite} detail={detail} community={ratings?.get(movie.id)}/>)}</div>
 }
 
-const MovieCard = memo(function MovieCard({ movie, saved, showType, favorite, detail, list, eager }: {
+const MovieCard = memo(function MovieCard({ movie, saved, showType, favorite, detail, list, eager, community }: {
   movie: Movie; saved: boolean; showType: boolean; list: boolean; eager: boolean
+  community?: CommunityRating
   favorite: (movie: Movie) => void; detail: (movie: Movie) => void
 }) {
   useLanguage()
   const contextMenu = () => { void api?.filmMenu(movie).catch(() => {}) }
-  const rating = movie.rating ? <span className={`poster-rating ${movie.rating < 7 ? 'neutral-rating' : ''}`}>{movie.rating.toFixed(1)}</span> : null
+  const rating = community ? <span className="poster-rating" title={t('Оценок NOVA · {0}', community.count)}>NOVA {community.average.toFixed(1)}</span>
+    : movie.rating ? <span className={`poster-rating ${movie.rating < 7 ? 'neutral-rating' : ''}`}>{movie.rating.toFixed(1)}</span> : null
   const save = <button className={`poster-save ${saved ? 'is-saved' : ''}`}
     aria-label={saved ? t("Убрать «{0}» из коллекции", movie.title) : t("Сохранить «{0}»", movie.title)}
     onClick={() => favorite(movie)}>
