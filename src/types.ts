@@ -52,7 +52,7 @@ export type FilmOpinion = 'like' | 'dislike' | 'hide' | 'reset'
 export type FeedbackNotice = { id:string;movie:Movie;message:string;undoToken?:string }
 export type Catalog = { movies: Movie[]; total: number; hasMore: boolean }
 export type SearchPhase = 'catalog' | 'description' | 'reviews' | 'matching'
-export type SceneInfo = { time: number; actors: string[]; music: string[] }
+export type SceneInfo = { time: number; actors: string[]; music: string[]; episodeEnded: boolean }
 export type CastCredit = { name: string; titles: { id: number; title: string }[] }
 export type API = {
   onMenuAction?(listener:(id:string,value:string)=>void):()=>void;

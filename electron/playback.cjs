@@ -111,4 +111,8 @@ function watchProgress(item, previous, current, elapsed, now = Date.now()) {
   const coverage = merged.reduce((seconds,[start,end]) => seconds + end-start,0);
   return { ...item, ...progress, watchedRanges: merged.slice(-300), watchedDuration: duration, completed: coverage >= duration * .85 };
 }
-module.exports = { VIDEO_PROBE, videoFacts, captureVideoFrame, playedDelta, watchProgress, sceneMetadata };
+function seriesEpisodeEnded(item, facts) {
+  return item?.type === 'series' && facts?.ended === true && facts.duration > 600 && item.watchedSeconds >= 120;
+}
+
+module.exports = { VIDEO_PROBE, videoFacts, captureVideoFrame, playedDelta, watchProgress, sceneMetadata, seriesEpisodeEnded };

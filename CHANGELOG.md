@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.24
+
+- New personal scores are available on the screen after watching. Existing scores can still be edited in My ratings.
+
 ## 0.8.23
 
 - NOVA checks for new releases every minute while open, and again when the connection returns. It announces a new release and downloads installed-app updates in the background.

@@ -17,7 +17,7 @@ const adblock = require('./adblock.cjs');
 const { metadataEndpoint, metadataPage, catalogParams, filterCatalogPage, externalTitle } = require('./library-source.cjs');
 const { plotWords, findPlotMovies } = require('./plot-search.cjs');
 const { chromiumFetch } = require('./network.cjs');
-const { videoFacts, playedDelta, watchProgress } = require('./playback.cjs');
+const { videoFacts, playedDelta, watchProgress, seriesEpisodeEnded } = require('./playback.cjs');
 const { createPauseScene, pausedFrame } = require('./pause-scene.cjs');
 const { createSceneCast, loadScenePortrait, personKey } = require('./scene-cast.cjs');
 const { castQuery, castCredits } = require('./cast-credits.cjs');
@@ -477,7 +477,7 @@ async function pollPlayback() {
       if (item && now - lastProgressSave > 15000) { lastProgressSave = now; await save(); emit(); }
     }
     const finished = item && facts?.ended && !tab.finishOffered && (item.type === 'film'
-      ? item.completed : facts.scene.finalEpisode && (item.watchedSeconds || 0) >= 120);
+      ? item.completed : facts.scene.finalEpisode && seriesEpisodeEnded(item, facts));
     if (finished && active === tab.id) {
       tab.finishOffered = true;
       item.completed = true;
@@ -827,12 +827,19 @@ function registerHandlers() {
     if (tab?.kind !== 'player') return null;
     const facts = await videoFacts(tab.view.webContents).catch(() => null);
     if (!facts || tab.id !== active || facts.duration <= 600) return null;
-    return { time: facts.time, actors: facts.scene.actors, music: facts.scene.music };
+    const item = state.history.find(movie => movie.id === tab.movie?.id);
+    return { time: facts.time, actors: facts.scene.actors, music: facts.scene.music, episodeEnded: seriesEpisodeEnded(item, facts) };
   });
   handle('finish-series', async input => {
-    const item = state.history.find(movie => movie.id === movieId(input) && movie.type === 'series');
-    if (!item) return;
+    const id = movieId(input);
+    const tab = tabs.get(active);
+    if (tab?.kind !== 'player' || tab.movie?.id !== id) throw new Error(uiText('Дождитесь окончания серии.'));
+    const view = tab.view;
+    const facts = await videoFacts(view.webContents).catch(() => null);
+    const item = state.history.find(movie => movie.id === id);
+    if (active !== tab.id || tab.view !== view || !seriesEpisodeEnded(item, facts)) throw new Error(uiText('Дождитесь окончания серии.'));
     item.completed = true;
+    tab.finishOffered = true;
     await save(); emit();
   });
   const creditCache = new Map();
@@ -912,9 +919,8 @@ function registerHandlers() {
     if (score === null) delete state.scores[id];
     else {
       if (!Number.isInteger(score) || score < 1 || score > 10) throw new Error('Оценка должна быть от 1 до 10');
-      const movie = state.scores[id]?.movie || knownMovies.get(id) || state.history.find(movie => movie.id === id) ||
-        state.favorites.find(movie => movie.id === id) || state.releases.find(movie => movie.id === id);
-      if (!movie) throw new Error('Фильм не найден');
+      const movie = state.scores[id]?.movie || state.history.find(movie => movie.id === id && movie.completed);
+      if (!movie) throw new Error(uiText('Оценить можно после просмотра.'));
       state.scores[id] = { movie: cleanMovie(movie), value: score };
     }
     await save(); emit();

@@ -2,7 +2,6 @@ import { genreLabel, getLanguage, t } from './i18n'
 import { mergeMovieDetails, movieUnavailable } from './movie-availability'
 import { OpinionButtons } from './OpinionButtons'
 import { MoviePoster } from './MoviePoster'
-import { Select } from './Select'
 import { useEffect, useRef, useState } from 'react'
 import { Bell, Bookmark, Check, ExternalLink, Film, RotateCw } from './icons'
 import type { CommunityRating, Movie, TomatoRating } from './types'
@@ -15,7 +14,7 @@ function Tomato({ score }: { score?: number }) {
   return score !== undefined && score < 60 ? <svg viewBox="0 0 32 32" aria-hidden="true"><path fill="#88b832" d="m15 1 4 8 9-4-2 10 6 6-10 1-4 10-5-8-11 2 5-10L1 9l10 1Z" /></svg> : <svg viewBox="0 0 32 32" aria-hidden="true"><path fill={score === undefined ? '#90979b' : '#fa3435'} d="M16 8C3-1-5 27 11 30c3 1 4-1 5-1s2 2 6 1C38 27 29-1 16 8Z"/><path fill={score === undefined ? '#737d78' : '#3b9e44'} d="m16 11-9-5 8 1-2-6 5 5 7-3-4 6 5 3-9-1-4 6Z"/></svg>
 }
 
-export default function MovieDetails({ initial, saved, followed, busy, close, watch, favorite, follow, notify, taste, rate, score, scoreTitle, shareConfigured, sharePending }: { initial: Movie; saved: boolean; followed: boolean; busy: boolean; close: () => void; watch: (m: Movie) => void; favorite: (m: Movie) => void; follow: (m: Movie) => void; notify: (s: string) => void; taste:import('./types').Taste;rate:(m:Movie,a:import('./types').FilmOpinion)=>void; score?: number; scoreTitle: (id: number, value: number | null) => void; shareConfigured: boolean; sharePending: boolean }) {
+export default function MovieDetails({ initial, saved, followed, busy, close, watch, favorite, follow, notify, taste, rate, shareConfigured, sharePending }: { initial: Movie; saved: boolean; followed: boolean; busy: boolean; close: () => void; watch: (m: Movie) => void; favorite: (m: Movie) => void; follow: (m: Movie) => void; notify: (s: string) => void; taste:import('./types').Taste;rate:(m:Movie,a:import('./types').FilmOpinion)=>void; shareConfigured: boolean; sharePending: boolean }) {
   const dialog = useRef<HTMLElement>(null)
   const [movie, setMovie] = useState(initial)
   const [loading, setLoading] = useState(true)
@@ -78,12 +77,6 @@ export default function MovieDetails({ initial, saved, followed, busy, close, wa
           <button className={`icon-button detail-save ${saved ? 'saved' : ''}`} aria-label={saved ? t("Убрать из коллекции") : t("В коллекцию")} aria-pressed={saved} onClick={() => favorite(movie)}>{saved ? <Check size={21} /> : <Bookmark size={21} />}</button>
         </div>
         <OpinionButtons movie={movie} taste={taste} rate={rate}/>
-        {!upcoming && <div className="detail-personal-score">
-          <Select label={t('Ваша оценка')} value={String(score ?? '')} options={[
-            { value: '', label: score ? t('Убрать оценку') : t('Поставить оценку') },
-            ...Array.from({ length: 10 }, (_, index) => ({ value: String(index + 1), label: t('{0} из 10', index + 1) })),
-          ]} onChange={value => scoreTitle(movie.id, value ? Number(value) : null)}/>
-        </div>}
         <section className="detail-synopsis" aria-label={t("Описание")}><h2>{movie.type === 'series' ? t('О сериале') : t('О фильме')}</h2><p>{movie.description || (loading ? t("Загружаем описание…") : t("Описание пока не добавлено в источник."))}</p></section>
         {(movie.directors || movie.actors || movie.country) && <dl className="detail-credits">{movie.directors && <><dt>{t("Режиссёр")}</dt><dd>{movie.directors}</dd></>}{movie.actors && <><dt>{t("В ролях")}</dt><dd>{movie.actors}</dd></>}{movie.country && <><dt>{t("Страна")}</dt><dd>{movie.country}</dd></>}</dl>}
         {error && <p className="detail-load-error" role="alert">{t("Не удалось обновить сведения.")}<button className="text-button" onClick={() => retry(v => v + 1)}>{t("Повторить")}</button></p>}

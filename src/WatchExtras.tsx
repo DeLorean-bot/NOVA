@@ -47,7 +47,7 @@ export function WatchExtras({ movie, scene, finished, finish, taste, rate, open,
       </button>
     </section>}
     {finished ? <section><h2>{t('Как вам просмотр?')}</h2><OpinionButtons movie={movie} taste={taste} rate={rate}/></section>
-      : movie.type === 'series' && <button type="button" className="quiet-button" onClick={finish}>{t('Сериал досмотрен')}</button>}
+      : scene?.episodeEnded && <button type="button" className="quiet-button" onClick={finish}>{t('Сериал досмотрен')}</button>}
     {(credits.length > 0 || names || busy) && <section>
       <h2>{credits.length ? t('Где ещё играли актёры') : t('В ролях')}</h2>
       {credits.length ? <dl className="watch-credits">{credits.map(actor => <div key={actor.name}>

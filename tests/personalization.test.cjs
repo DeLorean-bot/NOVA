@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { playedDelta, watchProgress, sceneMetadata } = require('../electron/playback.cjs');
+const { playedDelta, watchProgress, sceneMetadata, seriesEpisodeEnded } = require('../electron/playback.cjs');
 const { pausedFrame } = require('../electron/pause-scene.cjs');
 const { releaseTransition } = require('../electron/releases.cjs');
 test('only elapsed feature playback counts; seeks, ads and paused video do not', () => {
@@ -10,6 +10,13 @@ test('only elapsed feature playback counts; seeks, ads and paused video do not',
   assert.equal(playedDelta(video, { ...video, time: 14, duration: 20 }, 4), 0);
   assert.equal(playedDelta(video, { ...video, time: 14, paused: true }, 4), 0);
   assert.equal(playedDelta(null, video, 4), 0);
+});
+test('manual series completion is only offered when a watched episode has ended', () => {
+  const series = { type: 'series', watchedSeconds: 120 };
+  assert.equal(seriesEpisodeEnded(series, { ended: false, duration: 1800 }), false);
+  assert.equal(seriesEpisodeEnded(series, { ended: true, duration: 30 }), false);
+  assert.equal(seriesEpisodeEnded({ ...series, watchedSeconds: 10 }, { ended: true, duration: 1800 }), false);
+  assert.equal(seriesEpisodeEnded(series, { ended: true, duration: 1800 }), true);
 });
 test('pause cards keep scene actors and songs separate and require actual playback', () => {
   const scene = sceneMetadata([JSON.stringify({
