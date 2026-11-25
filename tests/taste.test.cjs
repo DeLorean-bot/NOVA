@@ -27,3 +27,20 @@ test('recent completed viewing outweighs old viewing, and abandoned manual genre
  assert.equal(tasteModel([],[],taste).hasProfile,false);
  assert.match(tasteModel(history,[],taste).reason(pool[0]),/Фильм 11/);
 });
+
+test('post-watch scores replace implicit interest and keep unrelated hits out of personal picks', async () => {
+  const { recommendations } = await import('../src/recommendations.ts');
+  const liked = { ...movie(1, 'детектив'), completed: true, watchedSeconds: 3000 };
+  const disliked = { ...movie(2, 'ужасы'), completed: true, watchedSeconds: 5000 };
+  const similarFilm = movie(3, 'детектив');
+  const similarSeries = { ...movie(4, 'детектив'), type: 'series' };
+  const horror = movie(5, 'ужасы');
+  const unrelated = { ...movie(6, 'комедия'), rating: 10 };
+  const pool = [liked, disliked, similarFilm, similarSeries, horror, unrelated];
+  const scores = { [liked.id]: { movie: liked, value: 9 }, [disliked.id]: { movie: disliked, value: 2 } };
+
+  const ids = recommendations(pool, [liked, disliked], [disliked], 1, [], undefined, scores).map(pick => pick.id);
+  assert.deepEqual(new Set(ids), new Set([similarFilm.id, similarSeries.id]));
+  assert.deepEqual(recommendations([horror, unrelated], [], [], 1, [], undefined, scores), []);
+  assert.deepEqual(recommendations([horror, unrelated], [disliked], [], 1, [], undefined, { [disliked.id]: scores[disliked.id] }), [unrelated]);
+});

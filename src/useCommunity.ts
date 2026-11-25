@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { CommunityTitle } from './types'
 
 export function useCommunity(active: boolean, pending: boolean) {
-  const [titles, setTitles] = useState<CommunityTitle[]>([])
+  const [titles, setTitles] = useState<CommunityTitle[] | null>(null)
   const [refresh, setRefresh] = useState(0)
   useEffect(() => {
     if (!active || !window.kadr) return
@@ -22,5 +22,5 @@ export function useCommunity(active: boolean, pending: boolean) {
     const timer = setInterval(reconnect, 120_000)
     return () => { alive = false; clearInterval(timer); window.removeEventListener('online', reconnect) }
   }, [active, pending, refresh])
-  return { titles, refresh: () => setRefresh(value => value + 1) }
+  return { titles: titles ?? [], ready: titles !== null, refresh: () => setRefresh(value => value + 1) }
 }

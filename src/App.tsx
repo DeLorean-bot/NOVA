@@ -364,13 +364,20 @@ export default function App() {
   if (sort === 'year' && !['films', 'series'].includes(section)) visible = [...visible].sort((a, b) => (b.year || 0) - (a.year || 0))
   const recommended = useMemo(() => {
     const pool = [...picks.movies, ...movies.films.slice(0, 30), ...movies.series.slice(0, 30)]
-    return recommendations(pool.filter(movie => movie.poster && !excludesCountry(movie.country, excludedCountries)), state.history, state.favorites, picks.seed, picks.seen, state.taste)
-  }, [picks.movies, movies.films, movies.series, state.history, state.favorites, picks.seed, picks.seen, state.taste, excludedCountries])
+    return recommendations(pool.filter(movie => movie.poster && !excludesCountry(movie.country, excludedCountries)), state.history, state.favorites, picks.seed, picks.seen, state.taste, state.scores)
+  }, [picks.movies, movies.films, movies.series, state.history, state.favorites, picks.seed, picks.seen, state.taste, state.scores, excludedCountries])
   // A backdrop must be a backdrop, never a portrait poster enlarged to 1100px.
-  const heroMovies = [...new Map([...recommended, ...movies.films.slice(0, 30)].filter(m => m.cover && !badCovers.has(m.id) && allowedSuggestion(m,state.taste) && !excludesCountry(m.country, excludedCountries)).map(m => [m.id, m])).values()].slice(0, 8)
+  const reservedForShelf = new Set(recommended.slice(-12).map(movie => movie.id))
+  const heroMovies = [...new Map([...recommended, ...movies.films.slice(0, 30)]
+    .filter(movie => movie.cover && !reservedForShelf.has(movie.id) && !badCovers.has(movie.id) &&
+      !state.scores[movie.id] && allowedSuggestion(movie, state.taste) && !excludesCountry(movie.country, excludedCountries))
+    .map(movie => [movie.id, movie])).values()].slice(0, 8)
   const hero = heroMovies[heroIndex % Math.max(1, heroMovies.length)]
   const heroIds = new Set(heroMovies.map(movie => movie.id))
   const shelfMovies = recommended.filter(movie => !heroIds.has(movie.id)).slice(0, 12)
+  const communityMovies = community.titles.map(({ movie }) => movie).filter(movie =>
+    allowedSuggestion(movie, state.taste, false) && !excludesCountry(movie.country, excludedCountries))
+  const hasPersonalScores = Boolean(Object.keys(state.scores).length || state.taste.liked.length || state.taste.disliked.length)
   const exposure=JSON.stringify([...(hero?[hero.id]:[]),...shelfMovies.map(m=>m.id)])
   useEffect(()=>{
     if(!startupDone||remote||section!=='home'||query||overlay||picks.loading||!picks.movies.length)return
@@ -420,7 +427,7 @@ export default function App() {
   const showHero = section === 'home' && !query.trim()
   const startupReady = !api || (profileReady && picks.ready && Boolean(pages.films || errors.films) && Boolean(pages.series || errors.series))
   if (showHero) {
-    const displayed = new Set([...heroIds, ...shelfMovies.map(movie => movie.id)])
+    const displayed = new Set([...heroIds, ...shelfMovies.map(movie => movie.id), ...communityMovies.map(movie => movie.id)])
     visible = visible.filter(movie => !displayed.has(movie.id) && allowedSuggestion(movie, state.taste))
   }
   const favoriteIds = useMemo(() => new Set(state.favorites.map(movie => movie.id)), [state.favorites])
@@ -449,9 +456,9 @@ export default function App() {
   const openSearch = () => { setSearchDraft(query); setSearchOpen(true) }
   const beginSearch = (text: string, format: 'all' | 'films' | 'series' = 'all') => { clearPages(); startSearch(text, format); setSearchOpen(false); if (state.active) perform(() => api!.home()) }
   const localNavigation = section === 'releases' ? <PremiereNavigation value={releaseTab} change={(value, instant)=>{setNavigationInstant(instant);setReleaseTab(value)}} count={state.releases.length} instant={navigationInstant}/> : group === 'catalog' || group === 'library' ? <SectionNavigation section={section} navigate={go} taste={openTaste} instant={navigationInstant}/> : null
-  const related = companion ? similarTitles(companion.movie, all.filter(movie => allowedSuggestion(movie, state.taste) && !excludesCountry(movie.country, excludedCountries))) : []
+  const related = companion ? similarTitles(companion.movie, all.filter(movie => !state.scores[movie.id] && allowedSuggestion(movie, state.taste) && !excludesCountry(movie.country, excludedCountries))) : []
   const next = companion?.finished ? (related.find(movie => !state.history.some(item => item.id === movie.id && item.completed))
-    ?? all.find(movie => movie.id !== companion.movie.id && allowedSuggestion(movie, state.taste) && !movie.completed && !excludesCountry(movie.country, excludedCountries))) : undefined
+    ?? recommended.find(movie => movie.id !== companion.movie.id)) : undefined
   const pageView = companion?.finished ? <WatchFinale key={companion.movie.id} movie={companion.movie} next={next} still={remoteStill}
     score={state.scores?.[companion.movie.id]?.value} saved={Boolean(next && favoriteIds.has(next.id))} busy={watching !== null} suspended={searchOpen || unsafeMenu}
     rate={value => perform(() => api!.scoreTitle(companion.movie.id, value))} favorite={toggleFavorite} watch={requestWatch} close={() => setCompanion(null)}/>
@@ -516,9 +523,17 @@ export default function App() {
           <div><h2 id="community-invitation-title">{t('Помогите NOVA развиваться')}</h2><p>{t('Ваши оценки помогут другим выбрать, что посмотреть.')}</p></div>
           <button type="button" className="quiet-button" onClick={() => void openCommunity()}>{t('Поделиться оценками')}<ArrowRight size={17}/></button>
         </aside>}
-        {showHero && <RecommendationShelf loading={picks.loading} error={picks.error} description={state.taste.liked.length ? t("По вашим просмотрам и оценкам") : state.history.some(m => (m.watchedSeconds || 0) >= 120) ? t("По тому, что вы смотрите") : t("Фильмы и сериалы для знакомства")} refresh={() => { picks.refresh(true,JSON.parse(exposure)); setHeroIndex(0) }}><MovieGrid eager={!startupDone} movies={shelfMovies} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails} /></RecommendationShelf>}
-        {showHero && community.titles.length > 0 && <RecommendationShelf community description={t('По оценкам сообщества NOVA')} refresh={community.refresh}>
-          <MovieGrid movies={community.titles.map(item => item.movie)} ratings={new Map(community.titles.map(item => [item.movie.id, item.rating]))} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails}/>
+        {showHero && <RecommendationShelf loading={picks.loading} error={picks.error}
+          description={hasPersonalScores ? t('По вашим просмотрам и оценкам') : state.history.some(movie => (movie.watchedSeconds || 0) >= 120) ? t('По тому, что вы смотрите') : t('Фильмы и сериалы для знакомства')}
+          empty={t('Пока нет похожих фильмов и сериалов.')}
+          refresh={() => { picks.refresh(true, JSON.parse(exposure)); setHeroIndex(0) }}>
+          {shelfMovies.length > 0 && <MovieGrid eager={!startupDone} movies={shelfMovies} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails}/>}
+        </RecommendationShelf>}
+        {showHero && community.ready && <RecommendationShelf community description={t('По оценкам сообщества NOVA')}
+          empty={t(community.titles.length ? 'Нет фильмов и сериалов по вашим фильтрам.' : 'Для попадания в подборку нужно три оценки от разных зрителей.')}
+          refresh={community.refresh}>
+          {communityMovies.length > 0 && <MovieGrid movies={communityMovies} ratings={new Map(community.titles.map(item => [item.movie.id, item.rating]))}
+            favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails}/>}
         </RecommendationShelf>}
 
         {section !== 'home' && (unfilteredCount > 0 || isCatalog) && <div className="filterbar">
@@ -549,6 +564,7 @@ export default function App() {
             {isCatalog && <CatalogLayoutToggle value={catalogLayout} change={value => { setCatalogLayout(value); localStorage.setItem('nova.catalog-layout', value) }}/>}
           </div>
         </div>}
+        {showHero && visible.length > 0 && <div className="catalog-heading"><h2>{t('В тренде')}</h2></div>}
         <MovieGrid eager={showHero && !startupDone} layout={section !== 'home' && isCatalog ? catalogLayout : 'grid'} showType={filter === 'all' && (Boolean(query.trim()) || !['films', 'series'].includes(section))} movies={visible} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails} />
         {!visible.length && !catalogLoading && !nextCatalogPage && !catalogError && <div className="empty-state">{section === 'favorites' ? <Bookmark size={32} /> : section === 'history' ? <Clock3 size={32} /> : <Search size={32} />}<h3>{query.trim() ? t("Ничего не найдено") : section === 'favorites' ? t("В коллекции пока пусто") : section === 'history' ? t("История пустая") : t("В этой подборке ничего нет")}</h3><p>{query.trim() ? t("Попробуйте другое название или откройте поиск Кинопоиска") : section === 'favorites' ? t("Нажмите на закладку у любого фильма.") : t("Выберите фильм в каталоге и откройте плеер.")}</p>{query.trim() && <button className="primary-button button-sm" onClick={searchKP}>{t("Искать на Кинопоиске")}<ArrowRight size={16} /></button>}</div>}
         {isCatalog && catalogError && <div className="catalog-error" role="alert">{catalogError}<button onClick={loadMore}>{t("Повторить")}</button></div>}
