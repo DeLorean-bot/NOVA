@@ -261,3 +261,10 @@ img { -webkit-user-drag: none; user-select: none; }
 @media(prefers-contrast:more) { .catalog-topbar .searchbox.lg-surface { background: var(--panel) !important; outline: 1px solid currentColor; } }
 .community-settings { margin-top: 18px; }
 .community-setting-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+.community-invitation { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 24px 0; padding: 14px 16px; border: 1px solid var(--edge); border-radius: 16px; background: var(--panel); }
+.community-invitation-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--selection); color: var(--accent); }
+.community-invitation > div { flex: 1 1 230px; }
+.community-invitation h2 { margin: 0 0 4px; font-size: 15px; line-height: 20px; font-weight: 650; }
+.community-invitation p { margin: 0; color: var(--secondary); font-size: 13px; line-height: 19px; }
+.community-invitation button { display: inline-flex; align-items: center; gap: 8px; }

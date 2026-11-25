@@ -25,66 +25,15 @@ async function videoFacts(wc) {
   const video = videos.sort((a, b) => Number(b.duration > 600) - Number(a.duration > 600) || b.width * b.height - a.width * a.height)[0];
   if (!video) return null;
   const { cues, ...facts } = video;
-  return { ...facts, scene: sceneMetadata(cues) };
+  return { ...facts, finalEpisode: finalEpisodeCue(cues) };
 }
 
-async function captureVideoFrame(webContents, time) {
-  if (webContents.isDestroyed() || !Number.isFinite(time)) return '';
-  const script = `(() => {
-    const video = [...document.querySelectorAll('video')]
-      .filter(v => v.paused && !v.seeking && v.readyState >= 2 && v.videoWidth && Math.abs(v.currentTime - ${time}) < 0.15)
-      .sort((a, b) => b.videoWidth * b.videoHeight - a.videoWidth * a.videoHeight)[0];
-    if (!video) return '';
-    try {
-      const scale = Math.min(1, 800 / Math.max(video.videoWidth, video.videoHeight));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
-      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
-      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL('image/jpeg', .92);
-    } catch { return ''; }
-  })()`;
-  let timer;
-  const timeout = new Promise(resolve => { timer = setTimeout(() => resolve([]), 1000); timer.unref(); });
-  try {
-    const reads = webContents.mainFrame.framesInSubtree.map(frame => frame.executeJavaScript(script));
-    const results = await Promise.race([Promise.allSettled(reads), timeout]);
-    return results.map(result => result.value).find(value => typeof value === 'string' &&
-      value.length < 2_000_000 && value.startsWith('data:image/jpeg;base64,')) || '';
-  } finally { clearTimeout(timer); }
-}
-function sceneMetadata(cues) {
-  const actors = new Map(), tracks = new Map();
-  const text = value => typeof value === 'string' ? value.trim().slice(0, 160) : '';
-  const list = value => Array.isArray(value) ? value : [value];
-  const image = value => {
-    try {
-      if (typeof value !== 'string' || value.length > 2048) return '';
-      const url = new URL(value);
-      return url.protocol === 'https:' && !url.username && !url.password ? url.href : '';
-    } catch { return ''; }
-  };
-  let finalEpisode = false;
-  for (const cue of Array.isArray(cues) ? cues : []) {
-    if (typeof cue !== 'string' || cue.length > 4000) continue;
-    let value;
-    try { value = JSON.parse(cue); } catch { continue; }
-    if (!value || typeof value !== 'object') continue;
-    for (const actor of list(value.actors)) {
-      const name = text(actor?.name ?? actor);
-      if (name && !actors.has(name) && actors.size < 12) {
-        actors.set(name, { name, role: text(actor?.character ?? actor?.role), image: image(actor?.photo ?? actor?.image) });
-      }
-    }
-    for (const track of list(value.music)) {
-      const title = text(track?.title ?? track);
-      const artist = text(track?.artist);
-      const label = [artist, title].filter(Boolean).join(' — ');
-      if (title && !tracks.has(label) && tracks.size < 8) tracks.set(label, { title, artist, image: image(track?.artwork ?? track?.image) });
-    }
-    if (value.episode?.final === true) finalEpisode = true;
-  }
-  return { actors: [...actors.keys()], music: [...tracks.keys()], actorCards: [...actors.values()], tracks: [...tracks.values()], finalEpisode };
+function finalEpisodeCue(cues) {
+  return cues.some(cue => {
+    if (typeof cue !== 'string' || cue.length > 4000) return false;
+    try { return JSON.parse(cue)?.episode?.final === true; }
+    catch { return false; }
+  });
 }
 function playedDelta(previous, current, elapsed) {
   if (!previous || !current || (current.paused && !current.ended) || current.duration <= 600 || !current.width || current.ready < 2) return 0;
@@ -115,4 +64,4 @@ function seriesEpisodeEnded(item, facts) {
   return item?.type === 'series' && facts?.ended === true && facts.duration > 600 && item.watchedSeconds >= 120;
 }
 
-module.exports = { VIDEO_PROBE, videoFacts, captureVideoFrame, playedDelta, watchProgress, sceneMetadata, seriesEpisodeEnded };
+module.exports = { VIDEO_PROBE, videoFacts, playedDelta, watchProgress, finalEpisodeCue, seriesEpisodeEnded };

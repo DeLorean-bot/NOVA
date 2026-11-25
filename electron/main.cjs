@@ -2,7 +2,7 @@ const {createNativeMenus}=require('./native-menu.cjs');
 const { createAppearanceStore } = require('./appearance.cjs');
 const { readProfile, patchProfile } = require('./profile.cjs');
 const { normalViewBounds, shouldShowEmbeddedView, isPlayerDoubleClick } = require('./view-layout.cjs');
-const { app, BrowserWindow, WebContentsView, ipcMain, session, shell, Menu, webFrameMain, globalShortcut, Notification, screen, nativeImage, nativeTheme, net, protocol, safeStorage } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, session, shell, Menu, webFrameMain, globalShortcut, Notification, screen, nativeImage, nativeTheme, net, safeStorage, clipboard } = require('electron');
 const englishMessages = require('./locales/en.json');
 const { resolveLanguage } = require('./language.cjs');
 const { checkForUpdate } = require('./releases-update.cjs');
@@ -20,8 +20,7 @@ const { metadataEndpoint, metadataPage, catalogParams, filterCatalogPage, extern
 const { plotWords, findPlotMovies } = require('./plot-search.cjs');
 const { chromiumFetch } = require('./network.cjs');
 const { videoFacts, playedDelta, watchProgress, seriesEpisodeEnded } = require('./playback.cjs');
-const { createPauseScene, pausedFrame } = require('./pause-scene.cjs');
-const { createSceneCast, loadScenePortrait, personKey } = require('./scene-cast.cjs');
+const { createPlaybackWarning } = require('./playback-warning.cjs');
 const { castQuery, castCredits } = require('./cast-credits.cjs');
 const { createUpcoming } = require('./upcoming.cjs');
 const { releaseTransition, dismissReleaseNotices } = require('./releases.cjs');
@@ -31,9 +30,6 @@ const { createRecommendationSource } = require('./recommendation-source.cjs');
 const { cleanTaste, rateMovie, GENRES } = require('./taste.cjs');
 const {trailerDestination}=require('./trailers.cjs');
 const {createPosterStatus}=require('./posters.cjs');
-protocol.registerSchemesAsPrivileged([{ scheme: 'nova-cast-model', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
-const sceneCast = createSceneCast(chromiumFetch);
-const scenePortraits = new Map();
 const ratingsFor = createRatings(async url => {
   const response = await chromiumFetch(url, { signal: AbortSignal.timeout(10000), headers: { Accept: 'application/json, text/html' } });
   if (!response.ok) throw new Error('Рейтинги временно недоступны');
@@ -51,7 +47,7 @@ function windowIcon() {
   if (process.platform !== 'win32' || nativeTheme.shouldUseHighContrastColors) return iconFile();
   return iconFile(nativeTheme.shouldUseDarkColorsForSystemIntegratedUI ? '-dark' : '-light');
 }
-let nativeMenus, pauseScene, pauseProbeTimer, pauseRevision = 0;
+let nativeMenus, playbackWarning, warningProbeTimer, warningRevision = 0;
 let win, dataFile, appearanceStore, writeQueue = Promise.resolve(), blacklist, blacklistTime = 0;
 let state = { profile: readProfile(null, nativeImage.createFromDataURL), favorites: [], history: [], releases: [], sites: [], scores: {}, theme: 'light', motion: true, glassBackground: true, taste: cleanTaste({}, cleanMovie), sidebarCollapsed: false };
 let language = 'ru';
@@ -303,6 +299,15 @@ function toggleFullscreen() {
   else enterFullscreen();
 }
 
+function syncPlayerFullscreenControl() {
+  const tab = tabs.get(active);
+  const contents = tab?.kind === 'player' && tab.view.webContents;
+  if (!contents || contents.isDestroyed() || contents.isCrashed()) return;
+  for (const frame of contents.mainFrame.framesInSubtree) {
+    try { frame.send('nova:player-fullscreen-state', immersive()); } catch {}
+  }
+}
+
 async function fetchText(url) {
   let response;
   try {
@@ -332,131 +337,53 @@ async function playersFor(id, fresh = false) {
   return providers;
 }
 
-function pauseSceneContext() {
+function playbackWarningContext() {
   const tab = tabs.get(active);
-  if (concealed || tab?.kind !== 'player') return null;
-  if (!tab.pausedFrame) {
-    if (tab.warningUntil > Date.now()) return { id: tab.id, view: tab.view, model: {
-      variant: 'warning', language, theme: state.theme, motion: state.motion, age: tab.movie.age, warnings: tab.movie.contentWarnings,
-      label: uiText('Возрастное ограничение'),
-    } };
-    return null;
-  }
-  const frame = tab.pausedFrame;
-  const actors = (tab.sceneScan?.actors ?? frame.actors).map(actor => ({ name: actor.name, detail: actor.role, image: actor.image }));
+  if (concealed || tab?.kind !== 'player' || !(tab.warningUntil > Date.now())) return null;
   return { id: tab.id, view: tab.view, model: {
-    language, theme: state.theme, motion: state.motion, time: Math.floor(frame.time), actors,
-    tracks: frame.tracks.map(track => ({ name: track.title, detail: track.artist, image: track.image })),
-    labels: {
-      pause: uiText('На паузе'), actors: uiText('Актёры в кадре'),
-      music: uiText('Музыка в сцене'), noActors: uiText(tab.sceneScan?.pending ? 'Определяем актёров в кадре…' : 'Нет данных об актёрах в этой сцене'),
-      noMusic: uiText('Трек для этой сцены не указан'),
-    },
+    language, theme: state.theme, motion: state.motion, age: tab.movie.age, warnings: tab.movie.contentWarnings,
+    label: uiText('Возрастное ограничение'),
   } };
 }
 
-function scenePortrait(url) {
-  if (scenePortraits.has(url)) return scenePortraits.get(url);
-  const result = loadScenePortrait(chromiumFetch, nativeImage, url).then(image => {
-    if (!image && scenePortraits.get(url) === result) scenePortraits.delete(url);
-    return image;
-  });
-  if (scenePortraits.size >= 48) scenePortraits.delete(scenePortraits.keys().next().value);
-  scenePortraits.set(url, result);
-  return result;
+function endPlaybackWarning(tab) {
+  if (!tab?.warningUntil) return;
+  tab.warningUntil = 0;
+  clearTimeout(tab.warningTimer);
+  playbackWarning?.sync();
 }
 
-async function identifyPausedActors(tab, frame, request) {
+function maybeShowPlaybackWarning(tab, facts) {
+  if (facts?.paused) return endPlaybackWarning(tab);
+  if (tab.warningStarted || !facts?.played || !facts.width || facts.ready < 2 ||
+      (!tab.movie.age && !tab.movie.contentWarnings.length)) return;
+  tab.warningStarted = Date.now();
+  tab.warningUntil = tab.warningStarted + 5500;
+  tab.warningTimer = setTimeout(() => endPlaybackWarning(tab), 5500);
+  tab.warningTimer.unref();
+  playbackWarning?.sync();
+}
+
+function scheduleWarningProbe(tab) {
+  if (tab?.kind !== 'player' || tab.id !== active || concealed || tab.warningStarted ||
+      (!tab.movie.age && !tab.movie.contentWarnings.length)) return;
+  const revision = ++warningRevision;
+  clearTimeout(warningProbeTimer);
   const view = tab.view;
-  const current = () => active === tab.id && tab.view === view && tab.sceneScan === request && !concealed;
-  try {
-    let movie = { ...tab.movie, ...knownMovies.get(tab.movie.id) };
-    if (!movie.original || !movie.year) {
-      const details = await sourceSearch(String(movie.id)).catch(() => null);
-      if (details?.movies[0]) movie = { ...movie, ...details.movies[0] };
-    }
-    if (!current()) return;
-    const cast = await sceneCast(movie);
-    if (!current()) return;
-    if (frame.actors.length) {
-      request.actors = frame.actors.map(actor => {
-        const key = personKey(actor.name);
-        const matches = cast.filter(person => [person.name, person.localized].some(name => personKey(name) === key));
-        const credit = matches.length === 1 ? matches[0] : null;
-        return { ...actor, role: actor.role || credit?.role, image: actor.image || credit?.photos[0] };
-      });
-      return;
-    }
-    const candidates = cast.filter(actor => actor.photos.length).slice(0, 12);
-    const references = (await Promise.all(candidates.map(async (actor, index) => {
-      const photos = await Promise.all(actor.photos.map(async id => ({ id, index, source: await scenePortrait(id) })));
-      return photos.filter(item => item.source);
-    }))).flat();
-    if (!references.length || !current()) return;
-    const indices = await pauseScene.recognize(view, frame.time, references, current);
-    if (current()) request.actors = indices.flatMap(index => {
-      const person = candidates[index];
-      if (!person) return [];
-      return [{ name: language === 'ru' && person.localized ? person.localized : person.name,
-        role: person.role, image: references.find(item => item.index === index)?.source }];
-    });
-  } catch {} finally {
-    request.pending = false;
-    if (current()) pauseScene?.sync();
-  }
-}
-
-function showPausedFrame(tab, facts) {
-  tab.pausedFrame = pausedFrame(facts);
-  if (tab.pausedFrame && tab.warningUntil > Date.now()) {
-    tab.warningUntil = 0;
-    clearTimeout(tab.warningTimer);
-  }
-  if (!tab.warningStarted && facts?.played && !facts.paused && facts.width && facts.ready >= 2 &&
-      (tab.movie.age || tab.movie.contentWarnings.length)) {
-    tab.warningStarted = Date.now();
-    tab.warningUntil = tab.warningStarted + 5500;
-    tab.warningTimer = setTimeout(() => pauseScene?.sync(), 5500);
-    tab.warningTimer.unref();
-  }
-  const frame = tab.pausedFrame;
-  if (!frame) {
-    tab.sceneScan = undefined;
-    pauseScene?.sync();
-    return;
-  }
-  const key = JSON.stringify([frame.time, facts.frames, frame.actors]);
-  if (tab.sceneScan?.key !== key) {
-    tab.sceneScan = { key, pending: !frame.actors.length || frame.actors.some(actor => !actor.image || !actor.role) };
-    if (tab.sceneScan.pending) {
-      void identifyPausedActors(tab, frame, tab.sceneScan);
-    }
-  }
-  pauseScene?.sync();
-  if (!pauseProbeTimer && !concealed) schedulePauseProbe(tab, 650);
-}
-
-function schedulePauseProbe(tab, delay = 90) {
-  if (tab?.kind !== 'player' || tab.id !== active || concealed) return;
-  const revision = ++pauseRevision;
-  clearTimeout(pauseProbeTimer);
-  const view = tab.view;
-  pauseProbeTimer = setTimeout(async () => {
+  warningProbeTimer = setTimeout(async () => {
     const facts = await videoFacts(view.webContents).catch(() => null);
-    if (revision !== pauseRevision) return;
-    pauseProbeTimer = undefined;
-    if (active === tab.id && tab.view === view) showPausedFrame(tab, facts);
-  }, delay);
-  pauseProbeTimer.unref();
+    if (revision !== warningRevision) return;
+    warningProbeTimer = undefined;
+    if (active === tab.id && tab.view === view && !concealed) maybeShowPlaybackWarning(tab, facts);
+  }, 90);
+  warningProbeTimer.unref();
 }
 
-function clearPausedFrame(tab) {
-  if (tab) { tab.pausedFrame = null; tab.sceneScan = undefined; }
+function clearWarningProbe(tab) {
   if (tab && tab.id !== active) return;
-  pauseRevision++;
-  clearTimeout(pauseProbeTimer);
-  pauseProbeTimer = undefined;
-  pauseScene?.sync();
+  warningRevision++;
+  clearTimeout(warningProbeTimer);
+  warningProbeTimer = undefined;
 }
 
 async function pollPlayback() {
@@ -465,11 +392,11 @@ async function pollPlayback() {
   if (!tab || tab.kind !== 'player' || tab.view.webContents.isDestroyed()) return;
   pollingPlayback = true;
   try {
-    const now = Date.now(), previous = tab.playback, revision = pauseRevision;
+    const now = Date.now(), previous = tab.playback, revision = warningRevision;
     const view = tab.view;
     const facts = await videoFacts(view.webContents);
     if (tabs.get(tab.id) !== tab || tab.view !== view || active !== tab.id) return;
-    if (revision === pauseRevision && !pauseProbeTimer && !concealed) showPausedFrame(tab, facts);
+    if (revision === warningRevision && !warningProbeTimer && !concealed) maybeShowPlaybackWarning(tab, facts);
     const elapsed = Math.min(10, (now - (tab.probedAt || now)) / 1000);
     const delta = playedDelta(previous, facts, elapsed);
     tab.probedAt = now; tab.playback = facts;
@@ -479,7 +406,7 @@ async function pollPlayback() {
       if (item && now - lastProgressSave > 15000) { lastProgressSave = now; await save(); emit(); }
     }
     const finished = item && facts?.ended && !tab.finishOffered && (item.type === 'film'
-      ? item.completed : facts.scene.finalEpisode && seriesEpisodeEnded(item, facts));
+      ? item.completed : facts.finalEpisode && seriesEpisodeEnded(item, facts));
     if (finished && active === tab.id) {
       tab.finishOffered = true;
       item.completed = true;
@@ -573,15 +500,16 @@ function layout() {
     }
     if (view.getVisible() !== visible) view.setVisible(visible);
   }
-  pauseScene?.sync();
+  playbackWarning?.sync();
 }
 
 function activate(id) {
   if (immersive() && tabs.get(id)?.kind !== 'player') exitFullscreen();
   if (active !== id) closeTrailerPreview();
-  clearPausedFrame(tabs.get(active));
+  clearWarningProbe(tabs.get(active));
   active = id; layout(); emit();
-  schedulePauseProbe(tabs.get(id));
+  syncPlayerFullscreenControl();
+  scheduleWarningProbe(tabs.get(id));
 }
 
 function providerHost(provider) {
@@ -628,7 +556,7 @@ function mountHostedEmbed(tab, wc) {
 function rebuildRemote(t) {
   clearTimeout(t.recoveryTimer);
   if (tabs.get(t.id) !== t || !win || win.isDestroyed()) return;
-  clearPausedFrame(t);
+  clearWarningProbe(t);
   const old = t.view;
   t.recovering = false; t.error = ''; t.playback = null; t.probedAt = 0;
   // Detach listeners before closing: a late event from the old renderer must
@@ -658,6 +586,8 @@ function attachRemoteView(t) {
     preload: path.join(__dirname, 'player-preload.cjs'),
     partition: 'persist:kadr-sites', sandbox: true, contextIsolation: true,
     nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false,
+    nodeIntegrationInSubFrames: kind === 'player',
+    additionalArguments: kind === 'player' ? ['--nova-player-view'] : [],
     disableHtmlFullscreenWindowResize: true,
     autoplayPolicy: 'document-user-activation-required',
   } });
@@ -665,7 +595,12 @@ function attachRemoteView(t) {
   t.view = view;
   win.contentView.addChildView(view);
   const wc = view.webContents;
-  if (kind === 'player') wc.setZoomMode('disabled');
+  if (kind === 'player') {
+    wc.setZoomMode('disabled');
+    wc.ipc.on('nova:player-fullscreen-button', event => {
+      if (event.sender === wc && event.senderFrame && active === id && tabs.get(id)?.view === view && !concealed) toggleFullscreen();
+    });
+  }
   wc.on('before-mouse-event', (event, input) => {
     if (input.type === 'mouseDown') nativeMenus?.close(null, false);
     if (kind !== 'player' || active !== id || concealed || !['mouseDown', 'mouseUp'].includes(input.type) ||
@@ -710,17 +645,18 @@ function attachRemoteView(t) {
   wc.on('did-start-navigation', (_event, _url, inPlace, isMainFrame) => {
     if (isMainFrame) {
       t.blocked = 0;
-      if (!inPlace) clearPausedFrame(t);
+      if (!inPlace) clearWarningProbe(t);
     }
   });
   if (kind === 'player') {
-    wc.on('media-paused', () => schedulePauseProbe(t));
-    wc.on('media-started-playing', () => { clearPausedFrame(t); schedulePauseProbe(t); });
+    wc.on('media-paused', () => endPlaybackWarning(t));
+    wc.on('media-started-playing', () => { clearWarningProbe(t); scheduleWarningProbe(t); });
   }
   wc.on('did-frame-finish-load', (_event, _main, processId, routingId) => {
     try {
       const frame = webFrameMain.fromId(processId, routingId);
       if (!frame) return;
+      if (kind === 'player') frame.send('nova:player-fullscreen-state', active === id && immersive());
       const css = adblock.stylesheet(frame.url);
       if (css) frame.executeJavaScript(`(() => { let s = document.getElementById('kadr-adblock-style'); if (!s) { s = document.createElement('style'); s.id = 'kadr-adblock-style'; document.documentElement.appendChild(s); } s.textContent = ${JSON.stringify(css)}; })()`).catch(() => {});
     } catch {}
@@ -731,7 +667,7 @@ function attachRemoteView(t) {
   });
   wc.on('render-process-gone', (_event, details) => {
     if (tabs.get(id) !== t || t.view !== view) return;
-    clearPausedFrame(t);
+    clearWarningProbe(t);
     recordRendererExit(t, details);
     if (active === id && immersive()) exitFullscreen();
     t.playback = null;
@@ -767,7 +703,7 @@ function attachRemoteView(t) {
 function closeTab(id) {
   const t = tabs.get(id);
   if (!t) return;
-  clearPausedFrame(t);
+  clearWarningProbe(t);
   clearTimeout(t.warningTimer);
   if (active === id) closeTrailerPreview();
   clearTimeout(t.recoveryTimer);
@@ -844,13 +780,13 @@ function registerHandlers() {
   });
   handle('catalog', catalog);
   handle('search', searchCatalog);
-  handle('scene', async () => {
+  handle('episode-ended', async () => {
     const tab = tabs.get(active);
-    if (tab?.kind !== 'player') return null;
+    if (tab?.kind !== 'player') return false;
     const facts = await videoFacts(tab.view.webContents).catch(() => null);
-    if (!facts || tab.id !== active || facts.duration <= 600) return null;
+    if (!facts || tab.id !== active) return false;
     const item = state.history.find(movie => movie.id === tab.movie?.id);
-    return { time: facts.time, actors: facts.scene.actors, music: facts.scene.music, episodeEnded: seriesEpisodeEnded(item, facts) };
+    return seriesEpisodeEnded(item, facts);
   });
   handle('finish-series', async input => {
     const id = movieId(input);
@@ -945,6 +881,12 @@ function registerHandlers() {
     await community.setConsent(consent);
     return consent === true;
   });
+  handle('community-github-copy', async () => {
+    const code = gistCommunity?.state.login?.code;
+    if (!code) return false;
+    await clipboard.writeText(code);
+    return true;
+  });
   handle('community-github-open', () => gistCommunity && shell.openExternal(activationPage));
   handle('community-github-cancel', () => gistCommunity?.cancel());
   handle('community-github-reconnect', () => { void gistCommunity?.authorize(() => community.flush()); });
@@ -965,7 +907,7 @@ function registerHandlers() {
   handle('trailer-preview', async (input, rect) => {
     const owner = tabs.get(active);
     closeTrailerPreview();
-    if (!input) return null;
+    if (!input) return false;
     const bounds = previewBounds(rect);
     if (!bounds || owner?.kind !== 'player') return null;
     const revision = previewRevision;
@@ -1030,8 +972,8 @@ function registerHandlers() {
     if (value && current && !concealed) { try { poster = (await current.view.webContents.capturePage()).toDataURL(); } catch {} }
     if (revision !== concealRevision) return null;
     concealed = Boolean(value);
-    if (concealed) clearPausedFrame(tabs.get(active));
-    else schedulePauseProbe(tabs.get(active));
+    if (concealed) clearWarningProbe(tabs.get(active));
+    else scheduleWarningProbe(tabs.get(active));
     layout(); syncEscapeShortcut();
     if (concealed && win && !win.isDestroyed()) win.webContents.focus();
     return poster;
@@ -1084,7 +1026,7 @@ function registerHandlers() {
     if (!t || t.kind !== 'player' || !Number.isInteger(provider) || !t.providers[provider]) throw new Error('Плеер не найден');
     const p = t.providers[provider];
     if (!Number.isInteger(translation) || translation < -1 || translation >= p.translations.length) throw new Error('Озвучка не найдена');
-    clearPausedFrame(t);
+    clearWarningProbe(t);
     clearTimeout(t.recoveryTimer); t.recoveryAttempts = 0;
     t.provider = provider; t.translation = translation; t.error = ''; t.playback = null; t.probedAt = 0;
     const url = translation === -1 ? p.url : p.translations[translation].url;
@@ -1286,7 +1228,7 @@ async function createWindow() {
     window.once('closed', () => nativeTheme.removeListener('updated', syncIcon));
   }
   nativeMenus=createNativeMenus({BrowserWindow,ipcMain,parent:win,getState:()=>state,getView:()=>concealed?null:tabs.get(active)?.view,onCommand:command=>{if(command==='fullscreen')toggleFullscreen();else win.webContents.send('kadr:focus-search')}});
-  pauseScene = createPauseScene({ BrowserWindow, parent: win, context: pauseSceneContext });
+  playbackWarning = createPlaybackWarning({ BrowserWindow, parent: win, context: playbackWarningContext });
   Menu.setApplicationMenu(null);
   win.webContents.on('will-navigate', event => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -1298,9 +1240,9 @@ async function createWindow() {
   win.on('resize', layout);
   win.on('focus', syncEscapeShortcut);
   win.on('blur', syncEscapeShortcut);
-  win.on('enter-full-screen', () => { syncEscapeShortcut(); layout(); emit(); });
-  win.on('leave-full-screen', () => { syncEscapeShortcut(); if (!fullscreenExit && (fullscreenWanted || tabs.get(active)?.htmlFullscreen)) exitFullscreen(); else { layout(); emit(); } });
-  win.on('closed', () => { nativeMenus?.dispose(); pauseScene?.dispose(); clearPausedFrame(); globalShortcut.unregister('Escape'); globalShortcut.unregister('F11'); for (const t of tabs.values()) if (!t.view.webContents.isDestroyed()) t.view.webContents.close(); tabs.clear(); win = null; });
+  win.on('enter-full-screen', () => { syncEscapeShortcut(); layout(); syncPlayerFullscreenControl(); emit(); });
+  win.on('leave-full-screen', () => { syncEscapeShortcut(); syncPlayerFullscreenControl(); if (!fullscreenExit && (fullscreenWanted || tabs.get(active)?.htmlFullscreen)) exitFullscreen(); else { layout(); emit(); } });
+  win.on('closed', () => { nativeMenus?.dispose(); playbackWarning?.dispose(); clearWarningProbe(); globalShortcut.unregister('Escape'); globalShortcut.unregister('F11'); for (const t of tabs.values()) if (!t.view.webContents.isDestroyed()) t.view.webContents.close(); tabs.clear(); win = null; });
   if (testProfile) win.showInactive();
   else win.show();
   if (!testProfile) {

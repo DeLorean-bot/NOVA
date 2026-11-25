@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src data:">
+<link rel="stylesheet" href="menu-material.css">
+<title>NOVA — Content notice</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; overflow: hidden; color: #f7f8fa; font: 14px 'Segoe UI', sans-serif; }
+  main { position: relative; isolation: isolate; display: flex; align-items: center; gap: 10px; width: max-content; max-width: calc(100% - 4px); min-height: 44px; margin: 2px; padding: 6px 11px 6px 7px; border: 1px solid var(--menu-rim); border-radius: 11px; background: var(--menu-solid); }
+  main:empty { display: none; }
+  .texture { position: absolute; inset: 0; z-index: -1; overflow: hidden; border-radius: inherit; }
+  .texture:has(img[src])::after { content: ''; position: absolute; inset: 0; background: var(--menu-glass); }
+  .texture img { position: absolute; filter: var(--menu-blur); }
+  .texture img:not([src]) { display: none; }
+  .age { padding: 4px 8px; border: 1px solid var(--menu-rim); border-radius: 7px; font-size: 17px; }
+  .warnings { display: grid; gap: 4px; }
+  :root[data-theme='light'] body { color: #17191d; }
+  @media (prefers-reduced-motion: no-preference) { :root[data-motion='on'] main[data-visible] { animation: warning 5.5s ease both; } }
+  @media (prefers-reduced-transparency: reduce), (forced-colors: active) { .texture { display: none; } }
+  @keyframes warning { 0%, 100% { opacity: 0; } 5%, 94% { opacity: 1; } }
+</style>
+<main aria-live="polite"></main>
+<script src="playback-warning.js" defer></script>
+</html>

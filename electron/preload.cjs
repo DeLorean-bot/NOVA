@@ -42,7 +42,7 @@ contextBridge.exposeInMainWorld('kadr', {
     return () => ipcRenderer.removeListener('kadr:search-phase', progress);
   },
   browse: (type, page = 1, options) => invoke('browse', type, page, options),
-  scene: () => invoke('scene'),
+  episodeEnded: () => invoke('episode-ended'),
   castCredits: id => invoke('cast-credits', id),
   finishSeries: id => invoke('finish-series', id),
   onWatchFinished: listener => {
@@ -68,6 +68,7 @@ contextBridge.exposeInMainWorld('kadr', {
   communityTop: () => invoke('community-top'),
   communityRating: id => invoke('community-rating', id),
   setCommunityConsent: value => invoke('community-consent', value),
+  copyCommunityGithubCode: () => invoke('community-github-copy'),
   openCommunityGithub: () => invoke('community-github-open'),
   cancelCommunityGithub: () => invoke('community-github-cancel'),
   reconnectCommunityGithub: () => invoke('community-github-reconnect'),

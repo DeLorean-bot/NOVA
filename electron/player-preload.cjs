@@ -1,6 +1,27 @@
 // Remote content receives no Node APIs or IPC bridge. This installs a small
 // adapter in the player's own JS world before its scripts initialize.
-const { contextBridge } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
+
+if (process.argv.includes('--nova-player-view')) {
+  const selector = 'button[data-allplay="fullscreen"]';
+  let fullscreen = false;
+  const findButton = event => event.composedPath().find(node => node instanceof Element && node.matches(selector));
+  const syncButton = button => button?.setAttribute('aria-pressed', String(fullscreen));
+  ipcRenderer.on('nova:player-fullscreen-state', (_event, value) => {
+    fullscreen = value === true;
+    syncButton(document.querySelector(selector));
+  });
+  for (const type of ['pointerover', 'focusin']) {
+    window.addEventListener(type, event => syncButton(findButton(event)), true);
+  }
+  window.addEventListener('click', event => {
+    if (!event.isTrusted || !findButton(event)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    ipcRenderer.send('nova:player-fullscreen-button');
+  }, true);
+}
+
 contextBridge.executeInMainWorld({ func: () => {
   if (!['api.nextembed.ws', 'api.embf.net'].includes(location.hostname)) return;
   let venom;

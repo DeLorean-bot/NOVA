@@ -5,7 +5,7 @@ import { CountryFilter } from './CountryFilter'
 import { PosterHover } from './PosterHover'
 import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type CSSProperties } from 'react'
 import { Bell, ArrowDown, ArrowLeft, ArrowRight, Bookmark, Collection, Check, ChevronRight, Clapperboard, Clock3, ExternalLink, Film, Globe2, House, Info, Maximize2, Play, Plus, RotateCw, Search, Settings2, Settings, Trash2, Tv, X, TrendingUp, CalendarDays } from './icons'
-import type { AppState, CommunityRating, Movie, RemoteTab, SceneInfo, SearchPhase } from './types'
+import type { AppState, CommunityRating, Movie, RemoteTab, SearchPhase } from './types'
 import { useCatalogNavigation, type Section } from './useCatalogNavigation'
 import { SelectionHighlight } from './SelectionHighlight'
 import { AppNavigation, CatalogLayoutToggle, SectionNavigation, PremiereNavigation, FormatTabs, PageFrame, type CatalogLayout } from './AppNavigation'
@@ -91,7 +91,7 @@ export default function App() {
   const [heroPaused, setHeroPaused] = useState(false)
   const [badCovers, setBadCovers] = useState<Set<number>>(new Set())
   const [panelHistory, setPanelHistory] = useState<PanelPage[]>([])
-  const [companion, setCompanion] = useState<{ movie: Movie; scene: SceneInfo | null; finished: boolean } | null>(null)
+  const [companion, setCompanion] = useState<{ movie: Movie; episodeEnded: boolean; finished: boolean } | null>(null)
   const panel = panelHistory.at(-1)
   const profileOpen = panel === 'profile', settingsOpen = panel === 'settings', tasteOpen = panel === 'taste'
   const openPanel = (next: PanelPage) => { setDetail(null); setCompanion(null); setPanelHistory(old => visitPanel(old, next)) }
@@ -99,8 +99,6 @@ export default function App() {
   const [releaseTab, setReleaseTab] = useState<'calendar' | 'following'>('calendar')
   const [detail, setDetail] = useState<Movie | null>(null)
   const [notification, setNotification] = useState<{ id: number; message?: string; feedback?: import('./types').FeedbackNotice; action?: { label: string; run: () => Promise<void> } } | null>(null)
-  const [showCommunityInvitation, setShowCommunityInvitation] = useState(false)
-  const invitedThisSession = useRef(false)
   const nextNotification = useRef(0)
   const [selectOpen, setSelectOpen] = useState(false)
   const [unsafeMenu, setUnsafeMenu] = useState(false)
@@ -137,10 +135,6 @@ export default function App() {
     setUpdateFocus(0)
     setPanelHistory(previous => visitPanel(previous, 'settings'))
     setCommunityFocus(previous => previous + 1)
-  }, [])
-  const dismissCommunityInvitation = useCallback(() => {
-    setShowCommunityInvitation(false)
-    void api?.dismissCommunityInvitation().catch(() => {})
   }, [])
   const { appearance, toggleTheme, changeToggle } = useAppearance(INITIAL_APPEARANCE, notify)
   const state = useMemo(() => ({ ...snapshot, ...appearance }), [snapshot, appearance])
@@ -211,7 +205,7 @@ export default function App() {
     })
     const stopReleases = api.onShowReleases(() => { api.home(); setPanelHistory([]); setDetail(null); setCompanion(null); setSection('releases') })
     const stopFinished = api.onWatchFinished(movie => {
-      setSearchOpen(false); setDetail(null); setPanelHistory([]); setCompanion({ movie, scene: null, finished: true })
+      setSearchOpen(false); setDetail(null); setPanelHistory([]); setCompanion({ movie, episodeEnded: false, finished: true })
     })
     return () => { active = false; window.removeEventListener('online', reconnect); stop(); stopUpdate(); stopShowUpdates(); stopSharingNotice(); stopSearchPhase(); stopFeedback(); stopFocus(); stopReleases(); stopFinished() }
   }, [notify, openUpdates, openCommunity, loadPage])
@@ -263,12 +257,6 @@ export default function App() {
   useLayoutEffect(() => { document.documentElement.dataset.motion = state.motion ? 'on' : 'off'; window.dispatchEvent(new Event('kadr:motion-change')) }, [state.motion])
   const remote = state.tabs.find(t => t.id === state.active)
   const community = useCommunity(Boolean(startupDone && state.community?.configured && section === 'home' && !remote && !panel && !detail), Boolean(state.community?.pending))
-  useEffect(() => {
-    if (!community.available || invitedThisSession.current || !state.community?.configured || state.community.invited ||
-        state.community.consent !== null || section !== 'home' || remote || panel || detail || searchOpen) return
-    invitedThisSession.current = true
-    setShowCommunityInvitation(true)
-  }, [community.available, state.community, section, remote, panel, detail, searchOpen])
   const parkedPlayer = state.active === null ? state.tabs.find(tab => tab.kind === 'player') : undefined
   const picks = useRecommendations(state.history, state.favorites, profileReady && !remote && section === 'home' && !query.trim(),state.taste)
   const pageActive = Boolean(detail || companion || settingsOpen || tasteOpen || profileOpen)
@@ -449,9 +437,9 @@ export default function App() {
   const activateTab = (id: string) => { clearPages(); perform(() => api!.tab(id)) }
   const closePage = () => { if (detail) setDetail(null); else if (companion) setCompanion(null); else if (panel) backPanel() }
   const openCompanion = (movie: Movie) => {
-    const request = api?.scene()
-    setCompanion({ movie, scene: null, finished: false })
-    void request?.then(scene => setCompanion(previous => previous?.movie.id === movie.id && !previous.finished ? { ...previous, scene } : previous)).catch(() => {})
+    const request = api?.episodeEnded()
+    setCompanion({ movie, episodeEnded: false, finished: false })
+    void request?.then(episodeEnded => setCompanion(previous => previous?.movie.id === movie.id && !previous.finished ? { ...previous, episodeEnded } : previous)).catch(() => {})
   }
   const openProfile = () => openPanel('profile')
   const openSettings = () => { setUpdateFocus(0); setCommunityFocus(0); openPanel('settings') }
@@ -469,7 +457,7 @@ export default function App() {
     rate={value => perform(() => api!.scoreTitle(companion.movie.id, value))} favorite={toggleFavorite} watch={requestWatch} close={() => setCompanion(null)}/>
     : companion ? <PageFrame title={companion.movie.title} parent={t('Плеер')} back={()=>setCompanion(null)}>
     <h1 data-page-heading className="watch-extras-title" tabIndex={-1}>{companion.movie.title}</h1>
-    <WatchExtras key={companion.movie.id} {...companion} pool={all} taste={state.taste} rate={(movie,action)=>perform(()=>api!.rateMovie(movie,action))}
+    <WatchExtras key={companion.movie.id} {...companion} pool={all}
       finish={() => perform(async () => { await api!.finishSeries(companion.movie.id); setCompanion(current => current?.movie.id === companion.movie.id ? { ...current, finished: true } : current) })}
       open={(id,title)=>showDetails(findMovie(id, 'film', title))}>
       {related.length > 0 && <section><h2>{t('Похожие фильмы и сериалы')}</h2><MovieGrid movies={related} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails}/></section>}
@@ -508,7 +496,7 @@ export default function App() {
       {state.tabs.length > 0 && !pageActive && remote && <div ref={tabsRoot} className="tabbar"><SelectionHighlight container={tabsRoot} axis="horizontal" value={!pageActive&&remote ? `remote-${remote.id}` : null} instant={navigationInstant} layoutKey={state.tabs.map(t => `${t.id}:${t.title}`).join('|')} />{state.tabs.map(tab => <div data-selection-key={`remote-${tab.id}`} className={`remote-tab ${tab.id === state.active && !pageActive ? 'active' : ''}`} key={tab.id}><button onClick={e => { clearPages(); setNavigationInstant(e.detail === 0); perform(() => api!.tab(tab.id)) }}>{tab.kind !== 'site' ? <Play size={13} /> : <Globe2 size={13} />}<span>{tab.title}</span></button><button aria-label={t("Закрыть {0}", tab.title)} className="tab-close" onClick={() => perform(() => api!.closeTab(tab.id))}><X size={13} /></button></div>)}</div>}
 
       {pageView ? pageView : remote ? <div className="remote-container">
-        <RemoteToolbar tab={remote} onNavigate={(action, address) => perform(() => api!.navigate(action, address))} onDetails={() => remote.movie && showDetails(remote.movie)} onScene={() => remote.movie && openCompanion(remote.movie)} onWatch={() => remote.detected && showDetails(findMovie(remote.detected.id, remote.detected.type, remote.title))} watching={watching !== null} onProvider={(p, t) => perform(() => api!.provider(p, t))} />
+        <RemoteToolbar tab={remote} onNavigate={(action, address) => perform(() => api!.navigate(action, address))} onDetails={() => remote.movie && showDetails(remote.movie)} onRelated={() => remote.movie && openCompanion(remote.movie)} onWatch={() => remote.detected && showDetails(findMovie(remote.detected.id, remote.detected.type, remote.title))} watching={watching !== null} onProvider={(p, t) => perform(() => api!.provider(p, t))} />
         {remote.error && <div className="remote-error"><Info size={16} />{t(remote.error)}<button onClick={() => perform(() => api!.navigate('reload'))}>{t("Повторить")}</button></div>}
         <div className="remote-slot" ref={remoteSlot}>{remoteStill && <img className="remote-still" src={remoteStill} alt="" />}</div>
       </div> : <Suspense fallback={<div className="catalog-loading" role="status">{t("Загружаем каталог…")}</div>}><CatalogScene title={section === 'home' ? undefined : section === 'search' ? t("Результаты поиска") : newReleases ? t("Новинки") : group === 'catalog' ? t("Каталог") : group === 'library' ? t("Медиатека") : t("Скоро в NOVA")} anchorVersion={isCatalog ? visible.length : undefined} pageCursor={startupDone && !overlay && !catalogError && !catalogLoading && nextCatalogPage ? String(nextCatalogPage) : undefined} loadNext={loadMore} subtitle={section === 'history' ? t("Фильмы и сериалы, для которых вы открывали плеер") : undefined} sectionKey={section === 'releases' ? section + releaseTab : section} instant={navigationInstant} viewKey={catalogViewKey + (section === 'releases' ? releaseTab : '')} positions={catalogPositions.current} navigation={localNavigation}>
@@ -523,6 +511,11 @@ export default function App() {
           </section> : loading.films ? <div className="hero-loading" aria-busy="true"><Clapperboard size={36} /><span>{t("Загружаем каталог")}</span></div> : null}
         </>}
 
+        {showHero && state.community?.configured && (state.community.consent !== true || state.community.github?.signedIn === false) && <aside className="community-invitation" aria-labelledby="community-invitation-title">
+          <span className="community-invitation-icon"><TrendingUp size={21}/></span>
+          <div><h2 id="community-invitation-title">{t('Помогите NOVA развиваться')}</h2><p>{t('Ваши оценки помогут другим выбрать, что посмотреть.')}</p></div>
+          <button type="button" className="quiet-button" onClick={() => void openCommunity()}>{t('Поделиться оценками')}<ArrowRight size={17}/></button>
+        </aside>}
         {showHero && <RecommendationShelf loading={picks.loading} error={picks.error} description={state.taste.liked.length ? t("По вашим просмотрам и оценкам") : state.history.some(m => (m.watchedSeconds || 0) >= 120) ? t("По тому, что вы смотрите") : t("Фильмы и сериалы для знакомства")} refresh={() => { picks.refresh(true,JSON.parse(exposure)); setHeroIndex(0) }}><MovieGrid eager={!startupDone} movies={shelfMovies} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails} /></RecommendationShelf>}
         {showHero && community.titles.length > 0 && <RecommendationShelf community description={t('По оценкам сообщества NOVA')} refresh={community.refresh}>
           <MovieGrid movies={community.titles.map(item => item.movie)} ratings={new Map(community.titles.map(item => [item.movie.id, item.rating]))} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails}/>
@@ -567,9 +560,6 @@ export default function App() {
 
     </GlassContent>
     {watching !== null && !detail && <div className="watch-progress" role="status"><RotateCw className="spin" size={17} /><div>{t("Ищем доступные плееры")}<span>{all.find(m => m.id === watching)?.title || t("Кинопоиск · {0}", watching)}</span></div></div>}
-    {startupDone && showCommunityInvitation && state.community?.consent === null && !notification && (!availableUpdate || updateKey === dismissedUpdate) && section === 'home' && !overlay && !remote && <FeedbackToast title={t('Выбор пользователей')}
-      message={t('Хотите учитывать свои оценки в рейтинге NOVA?')} duration={9000} close={dismissCommunityInvitation}
-      action={{ label: t('Настроить'), run: openCommunity }}/>}
     {startupDone && notification && <FeedbackToast key={notification.id} notice={notification.feedback} message={notification.message} action={notification.action}
       close={() => setNotification(current => current?.id === notification.id ? null : current)}
       undo={notification.feedback?.undoToken ? () => api!.undoFeedback(notification.feedback!.undoToken!) : undefined}/>}
@@ -584,7 +574,7 @@ export default function App() {
   </GlassScene>
 }
 
-function RemoteToolbar({ tab, onNavigate, onWatch, onDetails, onScene, watching, onProvider }: { tab: RemoteTab; onNavigate: (a: string, address?: string) => void; onWatch: () => void; onDetails: () => void; onScene: () => void; watching: boolean; onProvider: (p: number, t: number) => void }) {
+function RemoteToolbar({ tab, onNavigate, onWatch, onDetails, onRelated, watching, onProvider }: { tab: RemoteTab; onNavigate: (a: string, address?: string) => void; onWatch: () => void; onDetails: () => void; onRelated: () => void; watching: boolean; onProvider: (p: number, t: number) => void }) {
   const [address, setAddress] = useState(tab.url)
   useEffect(() => { setAddress(tab.url) }, [tab.url])
   return <div className="remote-toolbar">
@@ -603,7 +593,7 @@ function RemoteToolbar({ tab, onNavigate, onWatch, onDetails, onScene, watching,
       <Select label={t("Плеер")} prefix={t("Плеер")} className="provider-select" includeCurrent value={String(tab.provider)} onChange={v => { if (Number(v) !== tab.provider) onProvider(Number(v), -1) }} options={tab.providers.map((p, i) => ({ value: String(i), label: p.name }))} />
       {Boolean(tab.providers[tab.provider]?.translations.length) && <Select label={t("Озвучка")} className="translation-select" value={String(tab.translation)} onChange={v => onProvider(tab.provider, Number(v))} options={[{ value: '-1', label: t("Озвучка в плеере") }, ...tab.providers[tab.provider].translations.map((t, i) => ({ value: String(i), label: t.name + (t.quality ? ` · ${t.quality}` : '') }))]} />}
     </div>}
-    {tab.kind !== 'site' && <PlayerMenu details={tab.kind === 'player' ? onDetails : undefined} scene={tab.kind === 'player' ? onScene : undefined} reload={() => onNavigate('reload')}/>}
+    {tab.kind !== 'site' && <PlayerMenu details={tab.kind === 'player' ? onDetails : undefined} related={tab.kind === 'player' ? onRelated : undefined} reload={() => onNavigate('reload')}/>}
     <button className="icon-button" aria-label={t("Открыть в браузере")} onClick={() => onNavigate('external')}><ExternalLink size={16} /></button>
     <button className="icon-button" aria-label={t("Полный экран (F11)")} onClick={() => api?.window('fullscreen')}><Maximize2 size={16} /></button>
   </div>

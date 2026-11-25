@@ -55,7 +55,6 @@ export type FilmOpinion = 'like' | 'dislike' | 'hide' | 'reset'
 export type FeedbackNotice = { id:string;movie:Movie;message:string;undoToken?:string }
 export type Catalog = { movies: Movie[]; total: number; hasMore: boolean }
 export type SearchPhase = 'catalog' | 'description' | 'reviews' | 'matching'
-export type SceneInfo = { time: number; actors: string[]; music: string[]; episodeEnded: boolean }
 export type CastCredit = { name: string; titles: { id: number; title: string }[] }
 export type API = {
   onMenuAction?(listener:(id:string,value:string)=>void):()=>void;
@@ -74,7 +73,7 @@ export type API = {
   onShowUpdates(listener: () => void): () => void;
   search(query: string, page?: number, requestId?: number): Promise<{ movies: Movie[]; nextPage: number | null }>;
   onSearchPhase(listener: (requestId: number, phase: SearchPhase) => void): () => void;
-  scene(): Promise<SceneInfo | null>;
+  episodeEnded(): Promise<boolean>;
   castCredits(id: number): Promise<CastCredit[]>;
   finishSeries(id: number): Promise<void>;
   onWatchFinished(listener: (movie: Movie) => void): () => void;
@@ -95,6 +94,7 @@ export type API = {
   communityTop(): Promise<CommunityTitle[]>;
   communityRating(id: number): Promise<CommunityRating | null>;
   setCommunityConsent(value: boolean): Promise<boolean>;
+  copyCommunityGithubCode(): Promise<boolean>;
   openCommunityGithub(): Promise<void>;
   cancelCommunityGithub(): Promise<void>;
   reconnectCommunityGithub(): Promise<void>;

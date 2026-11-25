@@ -1,46 +1,25 @@
 const path = require('node:path');
-const fs = require('node:fs/promises');
 const { captureRegion } = require('./native-menu-model.cjs');
-const { captureVideoFrame } = require('./playback.cjs');
 
-const modelFiles = /^(?:tiny_face_detector|ssd_mobilenetv1|face_landmark_68_tiny|face_recognition)_model(?:-weights_manifest\.json|\.bin)$/;
-const modelDirectory = path.join(__dirname, '..', 'node_modules', '@vladmandic', 'face-api', 'model');
-
-function pausedFrame(video) {
-  if (!video?.played || !video.paused || video.ended || video.seeking || video.error || !video.width || video.ready < 2 || !Number.isFinite(video.time)) return null;
-  return { time: video.time, actors: video.scene.actorCards, tracks: video.scene.tracks };
-}
-
-function createPauseScene({ BrowserWindow, parent, context }) {
+function createPlaybackWarning({ BrowserWindow, parent, context }) {
   let popup, loaded, current, height = 0, captureTimer, capturing = false;
-  let disposed = false, modelsRegistered = false;
-  let recognitionQueue = Promise.resolve();
+  let disposed = false;
 
   function ensure() {
     if (loaded) return loaded;
     const window = new BrowserWindow({
-      parent, title: 'NOVA — Pause', show: false, frame: false, transparent: true,
+      parent, title: 'NOVA — Content notice', show: false, frame: false, transparent: true,
       backgroundColor: '#00000000', focusable: false, skipTaskbar: true, hasShadow: false,
       resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
       width: 336, height: 260,
-      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, partition: 'pause-scene' },
+      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, partition: 'playback-warning' },
     });
     popup = window;
-    if (!modelsRegistered) {
-      window.webContents.session.protocol.handle('nova-cast-model', async request => {
-        const url = new URL(request.url), file = url.pathname.slice(1);
-        if (url.hostname !== 'weights' || !modelFiles.test(file)) return new Response(null, { status: 404 });
-        try {
-          return new Response(await fs.readFile(path.join(modelDirectory, file)), { headers: { 'Access-Control-Allow-Origin': '*' } });
-        } catch { return new Response(null, { status: 404 }); }
-      });
-      modelsRegistered = true;
-    }
     window.setIgnoreMouseEvents(true);
     window.webContents.on('will-navigate', event => event.preventDefault());
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.on('closed', () => { popup = loaded = current = undefined; height = 0; });
-    loaded = window.loadFile(path.join(__dirname, 'pause-scene.html')).catch(error => {
+    loaded = window.loadFile(path.join(__dirname, 'playback-warning.html')).catch(error => {
       if (!window.isDestroyed()) window.destroy();
       throw error;
     });
@@ -65,18 +44,18 @@ function createPauseScene({ BrowserWindow, parent, context }) {
     try {
       const image = await view.webContents.capturePage(region.rect, { stayHidden: true });
       if (current === request && popup && !popup.isDestroyed() && !image.isEmpty()) {
-        await popup.webContents.executeJavaScript(`window.setPauseBackdrop(${JSON.stringify({ image: image.toDataURL(), ...region.style })})`);
+        await popup.webContents.executeJavaScript(`window.setWarningBackdrop(${JSON.stringify({ image: image.toDataURL(), ...region.style })})`);
         if (current === request) request.sampled = true;
       }
     } catch {} finally { capturing = false; }
   }
 
-  function place(view, width, warning) {
+  function place(view, width) {
     const owner = parent.getContentBounds();
     const bounds = view.getBounds();
     const pad = 20;
-    const top = Math.min(warning ? 42 : 66, Math.max(pad, bounds.height - height - pad));
-    const x = warning ? owner.x + bounds.x + pad : owner.x + bounds.x + bounds.width - width - pad;
+    const top = Math.min(42, Math.max(pad, bounds.height - height - pad));
+    const x = owner.x + bounds.x + pad;
     const target = { x, y: owner.y + bounds.y + top, width, height };
     const previous = popup.getBounds();
     const changed = Object.keys(target).some(key => target[key] !== previous[key]);
@@ -86,7 +65,7 @@ function createPauseScene({ BrowserWindow, parent, context }) {
     if (changed || !visible || !current.sampled) {
       void captureBackdrop(current, view);
     }
-    if (warning && !captureTimer) {
+    if (!captureTimer) {
       const request = current;
       captureTimer = setInterval(() => void captureBackdrop(request, view), 100);
       captureTimer.unref();
@@ -99,14 +78,11 @@ function createPauseScene({ BrowserWindow, parent, context }) {
     if (!active || !active.view.getVisible()) return hide();
     const bounds = active.view.getBounds();
     if (bounds.width < 300 || bounds.height < 200) return hide();
-    const warning = active.model.variant === 'warning';
-    const width = Math.min(warning ? 420 : 336, bounds.width - 40);
-    const compact = bounds.height < 420;
-    const maxCast = Math.min(6, Math.max(1, Math.floor((bounds.height - 172) / 52)));
-    const model = { ...active.model, compact, maxCast };
+    const width = Math.min(420, bounds.width - 40);
+    const model = active.model;
     const key = JSON.stringify([active.id, width, model]);
     if (current?.key === key) {
-      if (height && popup && !popup.isDestroyed()) place(active.view, width, warning);
+      if (height && popup && !popup.isDestroyed()) place(active.view, width);
       return;
     }
 
@@ -118,7 +94,7 @@ function createPauseScene({ BrowserWindow, parent, context }) {
       if (current !== request || !popup || popup.isDestroyed()) return;
       const size = popup.getBounds();
       if (size.width !== width) popup.setBounds({ ...size, width });
-      const measured = await popup.webContents.executeJavaScript(`window.renderPauseScene(${JSON.stringify(model)})`);
+      const measured = await popup.webContents.executeJavaScript(`window.renderPlaybackWarning(${JSON.stringify(model)})`);
       if (current !== request || !popup || popup.isDestroyed()) return;
       height = Math.max(1, Math.min(450, Math.ceil(measured)));
       sync();
@@ -132,25 +108,6 @@ function createPauseScene({ BrowserWindow, parent, context }) {
   parent.on('show', sync);
   return {
     sync,
-    recognize(view, time, references, isCurrent) {
-      const work = recognitionQueue.then(async () => {
-        if (disposed || !isCurrent() || view.webContents.isDestroyed() || !view.getVisible()) return [];
-        await ensure();
-        if (!isCurrent() || view.webContents.isDestroyed()) return [];
-        let frame = await captureVideoFrame(view.webContents, time);
-        if (!frame && isCurrent() && !view.webContents.isDestroyed()) {
-          const snapshot = await view.webContents.capturePage(undefined, { stayHidden: true });
-          if (snapshot.isEmpty()) return [];
-          const resized = snapshot.getSize().width > 800 ? snapshot.resize({ width: 800, quality: 'good' }) : snapshot;
-          frame = resized.toDataURL();
-        }
-        if (!frame || !isCurrent() || !popup || popup.isDestroyed()) return [];
-        const payload = { frame, references };
-        return popup.webContents.executeJavaScript(`window.recognizeSceneCast(${JSON.stringify(payload)})`);
-      });
-      recognitionQueue = work.catch(() => []);
-      return work;
-    },
     dispose() {
       disposed = true;
       hide();
@@ -164,4 +121,4 @@ function createPauseScene({ BrowserWindow, parent, context }) {
   };
 }
 
-module.exports = { pausedFrame, createPauseScene };
+module.exports = { createPlaybackWarning };

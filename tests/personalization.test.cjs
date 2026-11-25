@@ -1,7 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { playedDelta, watchProgress, sceneMetadata, seriesEpisodeEnded } = require('../electron/playback.cjs');
-const { pausedFrame } = require('../electron/pause-scene.cjs');
+const { playedDelta, watchProgress, finalEpisodeCue, seriesEpisodeEnded } = require('../electron/playback.cjs');
 const { releaseTransition } = require('../electron/releases.cjs');
 test('only elapsed feature playback counts; seeks, ads and paused video do not', () => {
   const video = { time: 10, duration: 3000, width: 1920, paused: false, ready: 4 };
@@ -18,21 +17,9 @@ test('manual series completion is only offered when a watched episode has ended'
   assert.equal(seriesEpisodeEnded({ ...series, watchedSeconds: 10 }, { ended: true, duration: 1800 }), false);
   assert.equal(seriesEpisodeEnded(series, { ended: true, duration: 1800 }), true);
 });
-test('pause cards keep scene actors and songs separate and require actual playback', () => {
-  const scene = sceneMetadata([JSON.stringify({
-    actors: [{ name: 'Актриса', character: 'Героиня', photo: 'https://example.test/portrait.webp' }],
-    music: [{ title: 'Трек', artist: 'Исполнитель', artwork: 'file:///private.png' }],
-  })]);
-  const video = { played: true, paused: true, width: 1920, ready: 2, time: 30, scene };
-  assert.deepEqual(pausedFrame(video), {
-    time: 30, actors: [{ name: 'Актриса', role: 'Героиня', image: 'https://example.test/portrait.webp' }],
-    tracks: [{ title: 'Трек', artist: 'Исполнитель', image: '' }],
-  });
-  assert.deepEqual(scene.actors, ['Актриса']);
-  assert.deepEqual(scene.music, ['Исполнитель — Трек']);
-  for (const state of [{ played: false }, { paused: false }, { ended: true }, { seeking: true }, { ready: 1 }]) {
-    assert.equal(pausedFrame({ ...video, ...state }), null);
-  }
+test('only structured final-episode metadata marks the last episode', () => {
+  assert.equal(finalEpisodeCue(['{"episode":{"final":true}}']), true);
+  assert.equal(finalEpisodeCue(['true', 'invalid', '{"episode":{"final":false}}']), false);
 });
 test('release notification is generated only on availability transition', () => {
   const first = releaseTransition({ id: 1, available: false }, true, 'first');

@@ -7,15 +7,15 @@ import { Film, Info, RotateCw, Settings } from './icons'
 import { useNativeMenu } from './useNativeMenu'
 import type { NativeMenuItem } from './types'
 
-export function PlayerMenu({ details, scene, reload }: { details?: () => void; scene?: () => void; reload: () => void }) {
+export function PlayerMenu({ details, related, reload }: { details?: () => void; related?: () => void; reload: () => void }) {
   const [open, setOpen] = useState(false), id = useId()
   const trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null)
   const restore=useRef(true)
   const focusMenu=useRef(false)
   const dismiss=useDialogDismiss(menu,()=>{setOpen(false);if(restore.current)trigger.current?.focus()},3)
   const finish=(focus=false)=>{setOpen(false);if(focus)trigger.current?.focus()}
-  const items:NativeMenuItem[]=[...(scene?[{value:'scene',label:t('Актёры и музыка'),icon:'Film' as const}]:[]),...(details?[{value:'details',label:t("О фильме или сериале"),icon:'Info' as const}]:[]),{value:'reload',label:t("Обновить плеер"),icon:'RotateCw'}]
-  const native=useNativeMenu({open,id,label:t("Действия плеера"),role:'menu',items,anchor:trigger,width:256,align:'end',focus:focusMenu.current?'first':null,close:finish,action:value=>{if(value==='scene')scene?.();else if(value==='details')details?.();else if(value==='reload')reload()}})
+  const items:NativeMenuItem[]=[...(related?[{value:'related',label:t('Актёры и похожие фильмы'),icon:'Film' as const}]:[]),...(details?[{value:'details',label:t("О фильме или сериале"),icon:'Info' as const}]:[]),{value:'reload',label:t("Обновить плеер"),icon:'RotateCw'}]
+  const native=useNativeMenu({open,id,label:t("Действия плеера"),role:'menu',items,anchor:trigger,width:256,align:'end',focus:focusMenu.current?'first':null,close:finish,action:value=>{if(value==='related')related?.();else if(value==='details')details?.();else if(value==='reload')reload()}})
   const close = (focus=true) => {restore.current=focus;if(native.enabled){void window.kadr?.closeMenu?.(id);finish(focus)}else dismiss()}
   useEffect(() => {
     if (!open) return
@@ -41,7 +41,7 @@ export function PlayerMenu({ details, scene, reload }: { details?: () => void; s
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); buttons[(index + (e.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]?.focus() }
       if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); buttons[e.key === 'Home' ? 0 : buttons.length - 1]?.focus() }
     }}>
-      {scene && <button role="menuitem" onClick={() => { close(); scene() }}><Film size={18}/><span>{t('Актёры и музыка')}</span></button>}
+      {related && <button role="menuitem" onClick={() => { close(); related() }}><Film size={18}/><span>{t('Актёры и похожие фильмы')}</span></button>}
       {details && <button role="menuitem" onClick={() => { close(); details() }}><Info size={18}/><span>{t("О фильме или сериале")}</span></button>}
       <button role="menuitem" onClick={() => { close(); reload() }}><RotateCw size={18}/><span>{t("Обновить плеер")}</span></button>
     </div>, document.body)}

@@ -20,5 +20,3 @@ Unmodified dependency licenses remain in the respective packages. The source arc
 
 
 - **Liquid Glass 0.0.2**, Glass-HQ, https://github.com/Glass-HQ/liquid-glass . MIT; licenses/Liquid-Glass-MIT.txt. Used in the desktop interface for optical glass surfaces. It does not composite the separate native video surface. Base UI, @lisse/core and vgpu licenses remain in their installed packages.
-
-- **FaceAPI**, Vladimir Mandic and contributors. MIT. The package license and model files ship with `@vladmandic/face-api`. Cast reference portraits and credits are fetched from Plex and Wikidata. Paused video frames are analyzed locally. [FaceAPI source](https://github.com/vladmandic/face-api) · [Plex](https://watch.plex.tv/) · [Wikidata](https://www.wikidata.org/)
