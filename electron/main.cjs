@@ -2,12 +2,14 @@ const {createNativeMenus}=require('./native-menu.cjs');
 const { createAppearanceStore } = require('./appearance.cjs');
 const { readProfile, patchProfile } = require('./profile.cjs');
 const { normalViewBounds, shouldShowEmbeddedView, isPlayerDoubleClick } = require('./view-layout.cjs');
-const { app, BrowserWindow, WebContentsView, ipcMain, session, shell, Menu, webFrameMain, globalShortcut, Notification, screen, nativeImage, nativeTheme, net, protocol } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, session, shell, Menu, webFrameMain, globalShortcut, Notification, screen, nativeImage, nativeTheme, net, protocol, safeStorage } = require('electron');
 const englishMessages = require('./locales/en.json');
 const { resolveLanguage } = require('./language.cjs');
 const { checkForUpdate } = require('./releases-update.cjs');
 const { createAppUpdates } = require('./app-updates.cjs');
 const { createCommunity, discoverCommunity } = require('./community.cjs');
+const { createGistCommunity, activationPage } = require('./gist-community.cjs');
+const gistConfig = require('./gist-config.json');
 const path = require('node:path');
 const { existsSync } = require('node:fs');
 const fs = require('node:fs/promises');
@@ -55,7 +57,7 @@ let state = { profile: readProfile(null, nativeImage.createFromDataURL), favorit
 let language = 'ru';
 let languageMode = 'system';
 let languageWrite = Promise.resolve();
-let appUpdates, desktopUpdateNotice, community, communityTimer, communityDiscovery;
+let appUpdates, desktopUpdateNotice, community, gistCommunity, communityTimer, communityDiscovery;
 let playerSessionReady;
 const uiText = (message, ...values) => {
   const template = language === 'en' && Object.hasOwn(englishMessages, message) ? englishMessages[message] : message;
@@ -227,7 +229,7 @@ function tabState(t) {
 }
 
 function snapshot() {
-  return { ...state, community: community?.state, tabs: [...tabs.values()].filter(tab => !tab.preview).map(tabState), active, source: SOURCE, immersive: immersive(), fullscreen: Boolean(win && !win.isDestroyed() && win.isFullScreen()) };
+  return { ...state, community: community && { ...community.state, github: gistCommunity?.state }, tabs: [...tabs.values()].filter(tab => !tab.preview).map(tabState), active, source: SOURCE, immersive: immersive(), fullscreen: Boolean(win && !win.isDestroyed() && win.isFullScreen()) };
 }
 function emit() { if (win && !win.isDestroyed()) win.webContents.send('kadr:state', snapshot()); }
 
@@ -683,8 +685,28 @@ function attachRemoteView(t) {
   wc.on('dom-ready', () => {
     if (t.hostUrl && wc.getURL() === t.hostUrl) mountHostedEmbed(t, wc);
   });
-  wc.on('enter-html-full-screen', () => { t.htmlFullscreen = true; if (active === id) enterFullscreen(); });
-  wc.on('leave-html-full-screen', () => { t.htmlFullscreen = false; if (active === id && !fullscreenExit) exitFullscreen(); });
+  wc.on('enter-html-full-screen', () => {
+    if (kind !== 'player') {
+      t.htmlFullscreen = true;
+      if (active === id) enterFullscreen();
+      return;
+    }
+    if (t.leavingPlayerDomFullscreen) return;
+    // The embedded control asks Chromium to fullscreen a video or wrapper.
+    // Let NOVA size the whole view and leave the provider in its normal layout.
+    const current = () => active === id && tabs.get(id) === t && t.view === view && !concealed;
+    const leaving = current() && (fullscreenWanted || win.isFullScreen());
+    t.leavingPlayerDomFullscreen = true;
+    if (current() && !leaving) enterFullscreen();
+    void leaveHtmlFullscreen(wc).then(() => {
+      if (leaving && current()) return exitFullscreen();
+    }).finally(() => { t.leavingPlayerDomFullscreen = false; });
+  });
+  wc.on('leave-html-full-screen', () => {
+    if (kind === 'player') return;
+    t.htmlFullscreen = false;
+    if (active === id && !fullscreenExit) exitFullscreen();
+  });
   wc.on('did-start-navigation', (_event, _url, inPlace, isMainFrame) => {
     if (isMainFrame) {
       t.blocked = 0;
@@ -911,7 +933,21 @@ function registerHandlers() {
     return entries.filter(Boolean);
   });
   handle('community-rating', id => community.rating(movieId(id)));
-  handle('community-consent', consent => community.setConsent(consent));
+  handle('community-consent', async consent => {
+    if (consent === true && gistCommunity && !gistCommunity.state.signedIn) {
+      void gistCommunity.authorize(async () => {
+        await community.setConsent(true);
+        if (win && !win.isDestroyed()) win.webContents.send('kadr:community-sharing-enabled');
+      });
+      return false;
+    }
+    if (consent === false) gistCommunity?.cancel();
+    await community.setConsent(consent);
+    return consent === true;
+  });
+  handle('community-github-open', () => gistCommunity && shell.openExternal(activationPage));
+  handle('community-github-cancel', () => gistCommunity?.cancel());
+  handle('community-github-reconnect', () => { void gistCommunity?.authorize(() => community.flush()); });
   handle('community-dismiss-invitation', () => community.dismissInvitation());
   handle('community-reconnect', connectCommunity);
   handle('score-title', async (value, score) => {
@@ -1161,9 +1197,24 @@ async function createWindow() {
     const saved = JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'language.json'), 'utf8'));
     if (saved === 'ru' || saved === 'en') languageMode = saved;
   } catch {}
-  const communityFile = path.join(app.getPath('userData'), 'community.json');
-  community = createCommunity({ origin: process.env.NOVA_COMMUNITY_URL || require('../package.json').novaCommunityUrl,
-    scores: () => state.scores, fetch: chromiumFetch, publish: emit, storage: {
+  const communityOrigin = process.env.NOVA_COMMUNITY_URL || require('../package.json').novaCommunityUrl;
+  if (!communityOrigin && gistConfig.clientId && safeStorage.isEncryptionAvailable()) {
+    const credentialPath = path.join(app.getPath('userData'), 'community-github');
+    gistCommunity = createGistCommunity({ ...gistConfig, fetch: chromiumFetch, publish: emit, storage: {
+      read: async () => {
+        try { return JSON.parse(safeStorage.decryptString(await fs.readFile(credentialPath))); }
+        catch { return null; }
+      },
+      write: async credentials => {
+        await fs.writeFile(credentialPath + '.tmp', safeStorage.encryptString(JSON.stringify(credentials)));
+        await fs.rename(credentialPath + '.tmp', credentialPath);
+      },
+    } });
+    await gistCommunity.load();
+  }
+  const communityFile = path.join(app.getPath('userData'), gistCommunity ? 'community-gist.json' : 'community.json');
+  community = createCommunity({ origin: gistCommunity ? 'https://gist.github.com' : communityOrigin,
+    scores: () => state.scores, fetch: gistCommunity?.request || chromiumFetch, publish: emit, storage: {
       read: async () => { try { return JSON.parse(await fs.readFile(communityFile, 'utf8')); } catch { return null; } },
       write: async value => {
         await fs.writeFile(communityFile + '.tmp', JSON.stringify(value), 'utf8');
@@ -1306,5 +1357,5 @@ else {
   });
   app.whenReady().then(async () => { registerHandlers(); await createWindow(); });
   app.on('window-all-closed', () => app.quit());
-  app.on('before-quit', event => { clearInterval(playbackTimer); clearInterval(releasesTimer); clearInterval(communityTimer); appUpdates?.dispose(); community?.close(); if (writeQueue) { event.preventDefault(); const pending = save(); writeQueue = null; Promise.allSettled([pending, languageWrite, appearanceStore?.flush()]).then(() => app.quit()); } });
+  app.on('before-quit', event => { clearInterval(playbackTimer); clearInterval(releasesTimer); clearInterval(communityTimer); appUpdates?.dispose(); community?.close(); gistCommunity?.cancel(); if (writeQueue) { event.preventDefault(); const pending = save(); writeQueue = null; Promise.allSettled([pending, languageWrite, appearanceStore?.flush()]).then(() => app.quit()); } });
 }

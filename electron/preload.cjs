@@ -68,6 +68,14 @@ contextBridge.exposeInMainWorld('kadr', {
   communityTop: () => invoke('community-top'),
   communityRating: id => invoke('community-rating', id),
   setCommunityConsent: value => invoke('community-consent', value),
+  openCommunityGithub: () => invoke('community-github-open'),
+  cancelCommunityGithub: () => invoke('community-github-cancel'),
+  reconnectCommunityGithub: () => invoke('community-github-reconnect'),
+  onCommunitySharingEnabled: listener => {
+    const enabled = () => listener();
+    ipcRenderer.on('kadr:community-sharing-enabled', enabled);
+    return () => ipcRenderer.removeListener('kadr:community-sharing-enabled', enabled);
+  },
   dismissCommunityInvitation: () => invoke('community-dismiss-invitation'),
   reconnectCommunity: () => invoke('community-reconnect'),
   open: url => invoke('open', url),

@@ -1,7 +1,7 @@
 {
   "name": "kadr-desktop",
   "productName": "NOVA",
-  "version": "0.8.24",
+  "version": "0.8.25",
   "description": "Фильмы и сериалы в одном окне",
   "author": "NOVA",
   "private": true,

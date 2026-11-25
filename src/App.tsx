@@ -190,6 +190,9 @@ export default function App() {
     }
     const stopUpdate = api.onUpdateStatus(status => { receivedStatus = true; acceptUpdate(status) })
     const stopShowUpdates = api.onShowUpdates(openUpdates)
+    const stopSharingNotice = api.onCommunitySharingEnabled(() => {
+      notify(t('Обмен оценками включён. Его можно отключить в настройках.'), { label: t('Настройки'), run: openCommunity })
+    })
     const reconnect = () => { void api.checkUpdate(true).catch(() => {}); void api.reconnectCommunity().catch(() => {}) }
     window.addEventListener('online', reconnect)
     const stopSearchPhase = api.onSearchPhase((id, phase) => {
@@ -210,8 +213,8 @@ export default function App() {
     const stopFinished = api.onWatchFinished(movie => {
       setSearchOpen(false); setDetail(null); setPanelHistory([]); setCompanion({ movie, scene: null, finished: true })
     })
-    return () => { active = false; window.removeEventListener('online', reconnect); stop(); stopUpdate(); stopShowUpdates(); stopSearchPhase(); stopFeedback(); stopFocus(); stopReleases(); stopFinished() }
-  }, [notify, openUpdates, loadPage])
+    return () => { active = false; window.removeEventListener('online', reconnect); stop(); stopUpdate(); stopShowUpdates(); stopSharingNotice(); stopSearchPhase(); stopFeedback(); stopFocus(); stopReleases(); stopFinished() }
+  }, [notify, openUpdates, openCommunity, loadPage])
 
   const buildSearchIndex = useCallback(async (page = 1) => {
     if (!api || searchInFlight.current === searchRevision.current) return
@@ -474,8 +477,8 @@ export default function App() {
   </PageFrame> : detail ? <PageFrame title={detail.title} parent={tasteOpen ? t("Мои оценки") : t(names[section])} back={()=>setDetail(null)}><Suspense fallback={<p role="status">{t("Загружаем описание…")}</p>}><MovieDetails key={detail.id} initial={detail} saved={favoriteIds.has(detail.id)} followed={state.releases.some(m=>m.id===detail.id)} busy={watching!==null} close={()=>setDetail(null)} watch={requestWatch} favorite={toggleFavorite} follow={m=>perform(()=>api!.followRelease(m))} notify={notify} taste={state.taste} rate={(m,a)=>perform(()=>api!.rateMovie(m,a))} shareConfigured={Boolean(state.community?.configured)} sharePending={Boolean(state.community?.pending)}/></Suspense></PageFrame>
     : tasteOpen ? <PageFrame title={t("Мои оценки")} parent={t('Моя NOVA')} back={backPanel}><Suspense fallback={<p role="status">{t("Загружаем оценки…")}</p>}><TasteDialog taste={state.taste} scores={state.scores} scoreTitle={(id,value)=>api!.scoreTitle(id,value)} detail={setDetail} rate={(m,a)=>api!.rateMovie(m,a)} clearGenre={g=>api!.tasteGenres(state.taste.genres,state.taste.blockedGenres.filter(genre=>genre!==g))}/></Suspense></PageFrame>
     : settingsOpen ? <PageFrame title={t("Настройки")} parent={t('Моя NOVA')} back={backPanel}><Suspense fallback={<p role="status">{t("Открываем настройки…")}</p>}><SettingsDialog state={state} update={update} updateFocus={updateFocus} communityFocus={communityFocus} changeCommunity={async value => {
-      await api!.setCommunityConsent(value)
-      if (value) notify(t('Обмен оценками включён. Его можно отключить в настройках.'), { label: t('Настройки'), run: openCommunity })
+      const enabled = await api!.setCommunityConsent(value)
+      if (enabled) notify(t('Обмен оценками включён. Его можно отключить в настройках.'), { label: t('Настройки'), run: openCommunity })
     }} languageMode={languageMode} changeLanguage={changeLanguage} changeMotion={value=>changeToggle('motion', value)} changeBackground={value=>changeToggle('glassBackground', value)}/></Suspense></PageFrame>
     : profileOpen ? <PageFrame title={t("Профиль")} parent="" back={backPanel}><Suspense fallback={<p role="status">{t("Открываем профиль…")}</p>}><ProfilePage state={state} save={patch=>api!.updateProfile(patch)} collection={()=>go('favorites')} history={()=>go('history')} taste={openTaste} settings={openSettings}/></Suspense></PageFrame>
     : null

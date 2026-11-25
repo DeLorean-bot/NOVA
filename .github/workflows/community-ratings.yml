@@ -1,0 +1,42 @@
+name: Community ratings
+
+on:
+  schedule:
+    - cron: '7,17,27,37,47,57 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: community-ratings
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Compute the public snapshot
+        env:
+          NOVA_GIST_PRIVATE_KEY: ${{ secrets.NOVA_GIST_PRIVATE_KEY }}
+        run: node community/collect-gist.cjs snapshot.json
+      - name: Publish changed ratings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          endpoint="repos/$GITHUB_REPOSITORY/contents/ratings.json"
+          gh api "$endpoint?ref=community-ratings" > published.json
+          jq -r '.content' published.json | base64 -d > previous.json
+          if cmp -s snapshot.json previous.json; then
+            exit 0
+          fi
+          jq -n --rawfile data snapshot.json --slurpfile previous published.json \
+            '{message:"Refresh NOVA community ratings",branch:"community-ratings",content:($data|@base64),sha:$previous[0].sha}' |
+            gh api --method PUT "$endpoint" --input - --silent

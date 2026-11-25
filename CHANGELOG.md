@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.25
+
+- Opt-in community ratings use encrypted GitHub Gist ballots and a public aggregate feed. Sharing requires a GitHub sign-in.
+- The embedded player fullscreen button uses NOVA's fullscreen layout without magnifying the controls.
+
 ## 0.8.24
 
 - New personal scores are available on the screen after watching. Existing scores can still be edited in My ratings.

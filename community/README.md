@@ -1,5 +1,15 @@
 # NOVA Community
 
+### GitHub Gist sharing
+
+NOVA keeps personal ratings on the device. Users who choose to share sign in to GitHub with a device code. NOVA sends their scores and title IDs as a single encrypted comment to the public [NOVA Gist](https://gist.github.com/DeLorean-bot/b6e3ff0ea216a1fc67136c877fa47837). GitHub shows who posted the comment. Other readers see ciphertext. The account credential stays in encrypted storage on the device.
+
+GitHub Actions counts the latest ballot per account and publishes only averages and vote counts to the [public ratings snapshot](https://raw.githubusercontent.com/DeLorean-bot/NOVA/community-ratings/ratings.json). A title needs at least three accounts. The job runs every ten minutes, and GitHub may delay scheduled runs or cache the feed. Turning off sharing removes the account's NOVA ballot from the Gist. The published rating reflects the deletion after the next successful calculation. Older aggregate snapshots can remain in the repository history.
+
+The OAuth client ID and public ballot key are in `electron/gist-config.json`. The matching private key is in the repository's `NOVA_GIST_PRIVATE_KEY` Actions secret. Device Flow must be enabled on the OAuth app.
+
+### Standalone server
+
 Run `npm run community` with Node.js 24. The HTTP service starts on `127.0.0.1:8787` and stores votes in `community.sqlite`. Set `NOVA_COMMUNITY_DB` to a path on a persistent volume in production. `NOVA_COMMUNITY_HOST` and `PORT` configure the listener.
 
 Point a test copy of NOVA to `NOVA_COMMUNITY_URL=http://127.0.0.1:8787`. To deploy the service on a host with Docker and a persistent volume:

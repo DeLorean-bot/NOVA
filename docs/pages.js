@@ -7,6 +7,7 @@ const english = {
   sharing: 'You can share and withdraw your ratings in NOVA Settings.',
   waiting: 'Checking the ratings configuration…',
   configured: 'Ratings server address published',
+  gist: 'Ratings use GitHub Gist',
   unconfigured: 'Ratings server pending',
   unavailable: 'Could not check the ratings configuration',
   releases: 'All releases', issues: 'Report an issue', support: 'Support NOVA',
@@ -14,6 +15,7 @@ const english = {
 
 const russianStatus = {
   configured: 'Адрес сервера опубликован',
+  gist: 'Рейтинг работает через GitHub Gist',
   unconfigured: 'Сервер рейтинга ещё не подключён',
   unavailable: 'Не удалось проверить статус рейтинга',
 };
@@ -44,6 +46,6 @@ fetch('https://raw.githubusercontent.com/DeLorean-bot/NOVA/main/community/endpoi
   credentials: 'omit', signal: AbortSignal.timeout(6000),
 }).then(async response => {
   if (!response.ok) throw new Error('Ratings configuration unavailable');
-  const { origin } = await response.json();
-  report(origin?.startsWith('https://') ? 'configured' : 'unconfigured');
+  const { origin, gist } = await response.json();
+  report(gist === true ? 'gist' : origin?.startsWith('https://') ? 'configured' : 'unconfigured');
 }).catch(() => report('unavailable'));

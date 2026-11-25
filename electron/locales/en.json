@@ -417,5 +417,13 @@
   "Хотите учитывать свои оценки в рейтинге NOVA?": "Would you like to include your scores in the NOVA rankings?",
   "Настроить": "Set up",
   "Оценить можно после просмотра.": "You can rate a title after watching it.",
-  "Дождитесь окончания серии.": "Wait for the episode to finish."
+  "Дождитесь окончания серии.": "Wait for the episode to finish.",
+  "Введите этот код на GitHub, чтобы подтвердить вход.": "Enter this code on GitHub to confirm sign-in.",
+  "Запрашиваем код входа GitHub…": "Requesting a GitHub sign-in code…",
+  "Открыть GitHub": "Open GitHub",
+  "Оценки ждут удаления из общего рейтинга.": "Your shared ratings are waiting to be removed.",
+  "Поделиться уже поставленными и будущими оценками? Баллы и ID тайтлов будут зашифрованы. В Gist будет видно имя вашего аккаунта GitHub. История просмотров останется в NOVA.": "Share existing and future ratings? Scores and title IDs are encrypted. Your GitHub username is visible in Gist. Watch history stays in NOVA.",
+  "Войти через GitHub и поделиться": "Sign in with GitHub and share",
+  "Войти в GitHub снова": "Sign in to GitHub again",
+  "Не удалось войти в GitHub. Попробуйте ещё раз с тем же аккаунтом.": "Couldn't sign in to GitHub. Try again with the same account."
 }

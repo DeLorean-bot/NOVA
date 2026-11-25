@@ -42,7 +42,10 @@ export type AppState = {
   scores: Record<number, TitleScore>;
   community?: CommunityPreferences;
 }
-export type CommunityPreferences = { configured: boolean; consent: boolean | null; invited: boolean; pending: boolean }
+export type CommunityPreferences = {
+  configured: boolean; consent: boolean | null; invited: boolean; pending: boolean;
+  github?: { signedIn: boolean; login: { waiting?: boolean; code?: string; failed?: boolean } | null };
+}
 export type CommunityRating = { id: number; average: number; count: number }
 export type CommunityTitle = { movie: Movie; rating: CommunityRating }
 export type PlayerBounds = { x: number; y: number; width: number; height: number }
@@ -91,7 +94,11 @@ export type API = {
   scoreTitle(id: number, score: number | null): Promise<void>;
   communityTop(): Promise<CommunityTitle[]>;
   communityRating(id: number): Promise<CommunityRating | null>;
-  setCommunityConsent(value: boolean): Promise<void>;
+  setCommunityConsent(value: boolean): Promise<boolean>;
+  openCommunityGithub(): Promise<void>;
+  cancelCommunityGithub(): Promise<void>;
+  reconnectCommunityGithub(): Promise<void>;
+  onCommunitySharingEnabled(listener: () => void): () => void;
   dismissCommunityInvitation(): Promise<void>;
   reconnectCommunity(): Promise<void>;
   open(url: string): Promise<string>; home(): Promise<void>; tab(id: string): Promise<void>; closeTab(id: string): Promise<void>;
