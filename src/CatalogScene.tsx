@@ -1,4 +1,4 @@
-import { Component, useCallback, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { Component, useCallback, useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react'
 import { useSectionTransition } from './useSectionTransition'
 
 export type CatalogPosition = { top: number; movie?: string; control?: string }
@@ -21,10 +21,19 @@ class CatalogResults extends Component<ResultsProps> {
     const { viewport, viewKey, version } = this.props
     const root = viewport.current
     if (!root?.scrollTop || previous.viewKey !== viewKey || version === undefined || version === previous.version) return null
-    const top = root.getBoundingClientRect().top + parseFloat(getComputedStyle(root).scrollPaddingTop || '0')
-    const cards = root.querySelectorAll<HTMLElement>('.catalog-results > .movie-grid [data-movie-id]')
-    const anchor = Array.from(cards).find(card => card.getBoundingClientRect().bottom > top)
-    return anchor?.dataset.movieId ? { id: anchor.dataset.movieId, offset: anchor.getBoundingClientRect().top } : null
+    const rect = root.getBoundingClientRect()
+    const top = rect.top + parseFloat(getComputedStyle(root).scrollPaddingTop || '0')
+    const cards = root.querySelectorAll<HTMLElement>('.catalog-results > .movie-grid > [data-movie-id]')
+    let first = 0, last = cards.length
+    while (first < last) {
+      const middle = first + Math.floor((last - first) / 2)
+      if (cards[middle].getBoundingClientRect().bottom > top) last = middle
+      else first = middle + 1
+    }
+    const anchor = cards[first]
+    if (!anchor?.dataset.movieId) return null
+    const offset = anchor.getBoundingClientRect().top
+    return offset < rect.bottom ? { id: anchor.dataset.movieId, offset } : null
   }
 
   componentDidUpdate(_: ResultsProps, _state: unknown, anchor: ScrollAnchor | null) {
@@ -41,11 +50,10 @@ class CatalogResults extends Component<ResultsProps> {
 
 export default function CatalogScene({ sectionKey, instant = false, viewKey, positions, pageCursor, anchorVersion, loadNext, children, navigation, title, subtitle }: Props) {
   const viewport = useRef<HTMLDivElement>(null), results = useRef<HTMLDivElement>(null)
-  const scrolling = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const position = useRef<CatalogPosition>({ top: 0 })
   const pending = useRef<CatalogPosition | null>(null)
   useSectionTransition(results, sectionKey, instant)
-  const [bottomEdge, setBottomEdge] = useState(0)
+  const bottomEdge = useRef<HTMLDivElement>(null)
   const pageEnd = useRef<HTMLDivElement>(null)
   const requestNext = useRef(loadNext)
   requestNext.current = loadNext
@@ -53,19 +61,49 @@ export default function CatalogScene({ sectionKey, instant = false, viewKey, pos
   useLayoutEffect(() => {
     const root = viewport.current, target = pageEnd.current
     if (!pageCursor || !root || !target) return
-    let timer: ReturnType<typeof setTimeout> | undefined
+    let armed = true
     const observer = new IntersectionObserver(([entry]) => {
-      clearTimeout(timer)
-      if (entry.isIntersecting) timer = setTimeout(() => requestNext.current(), 220)
-    }, { root, rootMargin: `0px 0px ${Math.max(460, Math.round(root.clientHeight * .75))}px` })
+      if (!armed || !entry.isIntersecting) return
+      armed = false
+      observer.disconnect()
+      requestNext.current()
+    }, { root, rootMargin: `0px 0px ${Math.max(480, root.clientHeight)}px` })
     observer.observe(target)
-    return () => { clearTimeout(timer); observer.disconnect() }
+    return () => { armed = false; observer.disconnect() }
   }, [viewKey, pageCursor])
 
-  const measure = useCallback(() => {
-    const el = viewport.current
-    if (!el) return
-    setBottomEdge(Math.min(1, Math.max(0, el.scrollHeight - el.clientHeight - el.scrollTop) / 48))
+  useLayoutEffect(() => {
+    const root = viewport.current, target = pageEnd.current, edge = bottomEdge.current
+    if (!root || !target || !edge) return
+    const app = root.closest('.app')
+    let idle: ReturnType<typeof setTimeout> | undefined
+    let scrolling = false
+    const stop = () => {
+      scrolling = false
+      root.classList.remove('is-scrolling')
+      app?.removeAttribute('data-catalog-scrolling')
+    }
+    const scroll = () => {
+      if (!pending.current) position.current.top = root.scrollTop
+      if (!scrolling) {
+        scrolling = true
+        root.classList.add('is-scrolling')
+        app?.setAttribute('data-catalog-scrolling', '')
+      }
+      clearTimeout(idle)
+      idle = setTimeout(stop, 180)
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      edge.toggleAttribute('data-at-end', entry.isIntersecting)
+    }, { root })
+    observer.observe(target)
+    root.addEventListener('scroll', scroll, { passive: true })
+    return () => {
+      observer.disconnect()
+      root.removeEventListener('scroll', scroll)
+      clearTimeout(idle)
+      stop()
+    }
   }, [])
 
   const restore = useCallback(() => {
@@ -85,6 +123,7 @@ export default function CatalogScene({ sectionKey, instant = false, viewKey, pos
   }, [])
 
   const stopRestoring = useCallback(() => {
+    if (!pending.current) return
     pending.current = null
     if (viewport.current) position.current = { ...position.current, top: viewport.current.scrollTop }
   }, [])
@@ -99,18 +138,16 @@ export default function CatalogScene({ sectionKey, instant = false, viewKey, pos
     position.current = { ...(positions.get(viewKey) ?? { top: 0 }) }
     pending.current = position.current
     restore()
-    return () => { positions.set(viewKey, { ...position.current }); clearTimeout(scrolling.current) }
+    return () => { positions.set(viewKey, { ...position.current }) }
   }, [viewKey, positions, restore])
 
-  useLayoutEffect(() => { restore(); measure() }, [children, restore, measure])
+  useLayoutEffect(() => { restore() }, [children, restore])
   useLayoutEffect(() => {
-    const sync = () => { restore(); measure() }
-    const observer = new ResizeObserver(sync)
+    const observer = new ResizeObserver(restore)
     if (viewport.current) observer.observe(viewport.current)
-    window.addEventListener('resize', sync)
-    sync()
-    return () => { observer.disconnect(); window.removeEventListener('resize', sync) }
-  }, [measure, restore])
+    if (results.current) observer.observe(results.current)
+    return () => observer.disconnect()
+  }, [restore])
 
 
   return <div className="catalog-scene" data-has-navigation={Boolean(navigation)} data-has-tools={Boolean(navigation)}>
@@ -120,19 +157,11 @@ export default function CatalogScene({ sectionKey, instant = false, viewKey, pos
       onFocusCapture={e => {
         const card = e.target.closest<HTMLElement>('[data-movie-id]')
         if (card) position.current = { ...position.current, movie: card.dataset.movieId, control: e.target.closest('.poster-save') ? '.poster-save' : e.target.closest('.movie-title') ? '.movie-title' : '.poster-button' }
-      }}
-      onScroll={e => {
-        const el = e.currentTarget
-        if (!pending.current) position.current = { ...position.current, top: el.scrollTop }
-        measure()
-        el.classList.add('is-scrolling')
-        clearTimeout(scrolling.current)
-        scrolling.current = setTimeout(() => el.classList.remove('is-scrolling'), 900)
       }}>
       {title && <div className="page-heading"><h1>{title}</h1>{subtitle && <p className="catalog-subtitle">{subtitle}</p>}</div>}
       {navigation && <div className="catalog-tools-bar"><div className="catalog-local-navigation">{navigation}</div></div>}
       <CatalogResults viewKey={viewKey} version={anchorVersion} viewport={viewport} results={results}>{children}<div ref={pageEnd} className="catalog-page-end" aria-hidden="true"/></CatalogResults>
     </div>
-    <div className="catalog-scroll-edge" data-edge="bottom" aria-hidden="true" style={{ '--edge-strength': bottomEdge } as CSSProperties}>{[.5, 1, 2, 4, 6].map((blur, i) => <span key={blur} style={{ backdropFilter: `blur(${blur}px)`, WebkitBackdropFilter: `blur(${blur}px)`, maskImage: `linear-gradient(to top,#000 0%,#000 ${Math.max(0, 54 - i * 12)}%,#000a ${70 - i * 12}%,#0003 ${86 - i * 12}%,transparent ${100 - i * 12}%)` }} />)}</div>
+    <div ref={bottomEdge} className="catalog-scroll-edge" data-at-end aria-hidden="true"/>
   </div>
 }

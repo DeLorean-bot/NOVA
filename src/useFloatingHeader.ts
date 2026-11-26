@@ -6,7 +6,14 @@ export function useFloatingHeader(header: RefObject<HTMLElement | null>) {
     const node = header.current, workspace = document.querySelector('.workspace')
     if (!node || !workspace) return
     const viewport = () => workspace.querySelector<HTMLElement>('.catalog-content,.page-frame')
-    const sync = () => { const value=String((viewport()?.scrollTop || 0)>8); if(node.dataset.scrolled!==value) node.dataset.scrolled=value }
+    const sync = (view: HTMLElement | null) => {
+      const value = String((view?.scrollTop ?? 0) > 8)
+      if (node.dataset.scrolled !== value) node.dataset.scrolled = value
+    }
+    const scroll = (event: Event) => {
+      const view = event.target
+      if (view instanceof HTMLElement && view.matches('.catalog-content,.page-frame') && workspace.contains(view)) sync(view)
+    }
     const wheel = (event: WheelEvent) => {
       const view = viewport()
       if (!view || event.ctrlKey || event.defaultPrevented) return
@@ -15,11 +22,11 @@ export function useFloatingHeader(header: RefObject<HTMLElement | null>) {
       view.dispatchEvent(new Event('kadr:scroll-intent'))
       view.scrollBy({ top: event.deltaY * unit, left: event.deltaX * unit, behavior: 'instant' })
     }
-    const observer = new MutationObserver(sync)
+    const observer = new MutationObserver(() => sync(viewport()))
     observer.observe(workspace, { childList: true })
-    document.addEventListener('scroll', sync, true)
+    workspace.addEventListener('scroll', scroll, { capture: true, passive: true })
     node.addEventListener('wheel', wheel, { passive: false })
-    sync()
-    return () => { observer.disconnect(); document.removeEventListener('scroll', sync, true); node.removeEventListener('wheel', wheel) }
+    sync(viewport())
+    return () => { observer.disconnect(); workspace.removeEventListener('scroll', scroll, true); node.removeEventListener('wheel', wheel) }
   }, [header])
 }

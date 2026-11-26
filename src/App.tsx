@@ -30,8 +30,6 @@ import { WatchFinale } from './WatchFinale'
 import { FeedbackToast } from './FeedbackToast'
 import { PlayerMenu } from './PlayerMenu'
 import { WatchExtras } from './WatchExtras'
-import { GlassScene, GlassContent, type GlassDiagnostic } from '@glass-sdk/liquid-glass'
-import { useReducedMotion } from './kit/reduced-motion'
 const SettingsDialog = lazy(() => import('./SettingsDialog'))
 const TasteDialog = lazy(() => import('./TasteDialog'))
 const MovieDetails = lazy(() => import('./MovieDetails'))
@@ -57,9 +55,6 @@ function manualMovie(id: number, type: 'film' | 'series' = 'film', title = t("К
 export default function App() {
   useInputModality()
   useLanguage()
-  const reducedMotion = useReducedMotion()
-  const [optics,setOptics] = useState({status:'pending',maps:0})
-  const glassDiagnostic = useCallback((d: GlassDiagnostic) => setOptics(p => { const status=d.error?'fallback':d.maps?'ready':'pending';return p.status===status&&p.maps===d.maps?p:{status,maps:d.maps} }),[])
   const [snapshot, setState] = useState(EMPTY)
   const [profileReady, setProfileReady] = useState(!api)
   const [startupDone, setStartupDone] = useState(false)
@@ -400,18 +395,25 @@ export default function App() {
     : browseError
   const catalogLoading = isCatalog && (searchingCatalog ? indexing : popularSection ? loading.films || loading.series : browseFeeds.some(feed => feed.loading))
   const searchNextPage = remoteResults.query === query.trim() ? remoteResults.nextPage : null
-  const nextCatalogPage = isCatalog && (searchingCatalog ? searchNextPage
-    : popularSection ? (more.films || more.series) && `${pages.films}:${pages.series}` : browseFeeds.filter(feed => feed.nextPage).map(feed => `${feed.type}:${feed.nextPage}`).join('|'))
-  const loadMore = () => {
+  const popularFeeds: FeedType[] = ['films', 'series']
+  const readyPopular = popularFeeds.filter(type => more[type] && !loading[type] && !errors[type])
+  const readyBrowse = browseFeeds.filter(feed => feed.nextPage && !feed.loading && !feed.error)
+  const nextCatalogPage = !isCatalog ? undefined : searchingCatalog
+    ? !indexing && !indexError && searchNextPage ? String(searchNextPage) : undefined
+    : popularSection
+      ? readyPopular.map(type => `${type}:${pages[type] + 1}`).join('|')
+      : readyBrowse.map(feed => `${feed.type}:${feed.nextPage}`).join('|')
+  const loadMore = (retryFailed = false) => {
     if (searchingCatalog) {
-      const page = indexError ? failedSearchPage.current : searchNextPage
-      if (page) void buildSearchIndex(page)
+      const page = retryFailed ? failedSearchPage.current : searchNextPage
+      if (page && !indexing) void buildSearchIndex(page)
     } else if (popularSection) {
-      if (more.films && (!catalogError || errors.films)) void loadPage('films', pages.films + 1)
-      if (more.series && (!catalogError || errors.series)) void loadPage('series', pages.series + 1)
+      const feeds = retryFailed ? popularFeeds.filter(type => errors[type] && !loading[type]) : readyPopular
+      for (const type of feeds) void loadPage(type, pages[type] + 1)
     } else {
-      for (const feed of browseFeeds) {
-        if (feed.nextPage && (!browseError || feed.error)) void loadBrowse(feed.type, feed.nextPage, browseOptions)
+      const feeds = retryFailed ? browseFeeds.filter(feed => feed.error && !feed.loading) : readyBrowse
+      for (const feed of feeds) {
+        if (feed.nextPage) void loadBrowse(feed.type, feed.nextPage, browseOptions)
       }
     }
   }
@@ -481,23 +483,27 @@ export default function App() {
   const updateKey = availableUpdate && `${availableUpdate.version}:${availableUpdate.phase}`
   const updateTitle = availableUpdate && t(availableUpdate.phase === 'ready' ? 'NOVA {0} готова к установке' : 'Доступна версия {0}', availableUpdate.version)
 
-  return <GlassScene className={`app kadr-topnav${companion?.finished ? ' post-playback' : ''}${state.immersive && (!overlay || companion?.finished) && !unsafeMenu ? ' player-immersive' : ''}`} data-theme={state.theme} data-optics={optics.status} data-optic-maps={optics.maps} data-navigation-instant={navigationInstant} appearance={state.theme} material="regular" motion={reducedMotion?'none':'full'} maxSurfaces={12} onDiagnostic={glassDiagnostic}>
+  return <div className={`app kadr-topnav${companion?.finished ? ' post-playback' : ''}${state.immersive && (!overlay || companion?.finished) && !unsafeMenu ? ' player-immersive' : ''}`} data-theme={state.theme} data-navigation-instant={navigationInstant}>
     <StartupIntro ready={startupReady} onDone={completeStartup} />
-    <GlassContent className="app-backdrop" inert={!startupDone}>
+    <div className="app-backdrop" inert={!startupDone}>
     <div className="reference-backdrop" aria-hidden="true"/>
     <div className="window-bar global-caption" aria-hidden="true"/>
     <AppNavigation state={state} group={panel||remote?null:group} pageKey={`${panel||''}:${detail?.id||''}:${section}:${remote?.id||''}`} instant={navigationInstant} navigate={goGroup} search={openSearch} settings={openSettings} updateTitle={updateTitle ?? undefined} openUpdates={openUpdates} taste={openTaste} editProfile={openProfile} history={()=>go('history')} theme={origin=>toggleTheme(origin, !remote || pageActive)} details={showDetails} readNotices={id=>perform(()=>api!.readReleases(id))} dismissNotices={ids=>perform(()=>api!.dismissReleaseNotices(ids))} activateTab={activateTab}/>
-    {parkedPlayer && !overlay && <button type="button" className="player-preview"
-      aria-label={t('Вернуться к просмотру «{0}»', parkedPlayer.title)} onClick={() => activateTab(parkedPlayer.id)}>
-      <span className="player-preview-art" aria-hidden="true">
-        {parkedPlayer.movie ? <MoviePoster key={parkedPlayer.movie.id} movie={parkedPlayer.movie} lazy={false} decorative/> : <Film size={24}/>}
-      </span>
-      <span className="player-preview-copy">
-        <strong title={parkedPlayer.title}>{parkedPlayer.title}</strong>
-        <span>{t('Продолжить просмотр')}</span>
-      </span>
-      <ArrowRight size={19}/>
-    </button>}
+    {parkedPlayer && !overlay && <div className="player-preview">
+      <button type="button" className="player-preview-resume"
+        aria-label={t('Вернуться к просмотру «{0}»', parkedPlayer.title)} onClick={() => activateTab(parkedPlayer.id)}>
+        <span className="player-preview-art" aria-hidden="true">
+          {parkedPlayer.movie ? <MoviePoster key={parkedPlayer.movie.id} movie={parkedPlayer.movie} lazy={false} decorative/> : <Film size={24}/>}
+        </span>
+        <span className="player-preview-copy">
+          <strong title={parkedPlayer.title}>{parkedPlayer.title}</strong>
+          <span>{t('Продолжить просмотр')}</span>
+        </span>
+        <ArrowRight size={19}/>
+      </button>
+      <button type="button" className="player-preview-close" aria-label={t('Закрыть плеер «{0}»', parkedPlayer.title)}
+        title={t('Закрыть плеер')} onClick={() => perform(() => api!.closeTab(parkedPlayer.id))}><X size={16}/></button>
+    </div>}
 
     <div className="workspace">
       {state.tabs.length > 0 && !pageActive && remote && <div ref={tabsRoot} className="tabbar"><SelectionHighlight container={tabsRoot} axis="horizontal" value={!pageActive&&remote ? `remote-${remote.id}` : null} instant={navigationInstant} layoutKey={state.tabs.map(t => `${t.id}:${t.title}`).join('|')} />{state.tabs.map(tab => <div data-selection-key={`remote-${tab.id}`} className={`remote-tab ${tab.id === state.active && !pageActive ? 'active' : ''}`} key={tab.id}><button onClick={e => { clearPages(); setNavigationInstant(e.detail === 0); perform(() => api!.tab(tab.id)) }}>{tab.kind !== 'site' ? <Play size={13} /> : <Globe2 size={13} />}<span>{tab.title}</span></button><button aria-label={t("Закрыть {0}", tab.title)} className="tab-close" onClick={() => perform(() => api!.closeTab(tab.id))}><X size={13} /></button></div>)}</div>}
@@ -506,7 +512,7 @@ export default function App() {
         <RemoteToolbar tab={remote} onNavigate={(action, address) => perform(() => api!.navigate(action, address))} onDetails={() => remote.movie && showDetails(remote.movie)} onRelated={() => remote.movie && openCompanion(remote.movie)} onWatch={() => remote.detected && showDetails(findMovie(remote.detected.id, remote.detected.type, remote.title))} watching={watching !== null} onProvider={(p, t) => perform(() => api!.provider(p, t))} />
         {remote.error && <div className="remote-error"><Info size={16} />{t(remote.error)}<button onClick={() => perform(() => api!.navigate('reload'))}>{t("Повторить")}</button></div>}
         <div className="remote-slot" ref={remoteSlot}>{remoteStill && <img className="remote-still" src={remoteStill} alt="" />}</div>
-      </div> : <Suspense fallback={<div className="catalog-loading" role="status">{t("Загружаем каталог…")}</div>}><CatalogScene title={section === 'home' ? undefined : section === 'search' ? t("Результаты поиска") : newReleases ? t("Новинки") : group === 'catalog' ? t("Каталог") : group === 'library' ? t("Медиатека") : t("Скоро в NOVA")} anchorVersion={isCatalog ? visible.length : undefined} pageCursor={startupDone && !overlay && !catalogError && !catalogLoading && nextCatalogPage ? String(nextCatalogPage) : undefined} loadNext={loadMore} subtitle={section === 'history' ? t("Фильмы и сериалы, для которых вы открывали плеер") : undefined} sectionKey={section === 'releases' ? section + releaseTab : section} instant={navigationInstant} viewKey={catalogViewKey + (section === 'releases' ? releaseTab : '')} positions={catalogPositions.current} navigation={localNavigation}>
+      </div> : <Suspense fallback={<div className="catalog-loading" role="status">{t("Загружаем каталог…")}</div>}><CatalogScene title={section === 'home' ? undefined : section === 'search' ? t("Результаты поиска") : newReleases ? t("Новинки") : group === 'catalog' ? t("Каталог") : group === 'library' ? t("Медиатека") : t("Скоро в NOVA")} anchorVersion={isCatalog ? visible.length : undefined} pageCursor={startupDone && !overlay && !unsafeMenu ? nextCatalogPage : undefined} loadNext={loadMore} subtitle={section === 'history' ? t("Фильмы и сериалы, для которых вы открывали плеер") : undefined} sectionKey={section === 'releases' ? section + releaseTab : section} instant={navigationInstant} viewKey={catalogViewKey + (section === 'releases' ? releaseTab : '')} positions={catalogPositions.current} navigation={localNavigation}>
         {section === 'releases' && !query.trim() ? <UpcomingPage selectedTab={releaseTab} onTabChange={setReleaseTab} hideNavigation taste={state.taste} history={state.history} favorites={state.favorites} items={state.releases} follow={m => api!.followRelease(m)} remove={id => api!.unfollowRelease(id)} check={() => api!.checkReleases()} detail={showDetails} /> : <>
         {showHero && <>
           <div className="page-heading"><h1 className="heading-5">{t("Обзор")}</h1></div>
@@ -567,14 +573,14 @@ export default function App() {
         {showHero && visible.length > 0 && <div className="catalog-heading"><h2>{t('В тренде')}</h2></div>}
         <MovieGrid eager={showHero && !startupDone} layout={section !== 'home' && isCatalog ? catalogLayout : 'grid'} showType={filter === 'all' && (Boolean(query.trim()) || !['films', 'series'].includes(section))} movies={visible} favorites={favoriteIds} favorite={toggleFavorite} detail={showDetails} />
         {!visible.length && !catalogLoading && !nextCatalogPage && !catalogError && <div className="empty-state">{section === 'favorites' ? <Bookmark size={32} /> : section === 'history' ? <Clock3 size={32} /> : <Search size={32} />}<h3>{query.trim() ? t("Ничего не найдено") : section === 'favorites' ? t("В коллекции пока пусто") : section === 'history' ? t("История пустая") : t("В этой подборке ничего нет")}</h3><p>{query.trim() ? t("Попробуйте другое название или откройте поиск Кинопоиска") : section === 'favorites' ? t("Нажмите на закладку у любого фильма.") : t("Выберите фильм в каталоге и откройте плеер.")}</p>{query.trim() && <button className="primary-button button-sm" onClick={searchKP}>{t("Искать на Кинопоиске")}<ArrowRight size={16} /></button>}</div>}
-        {isCatalog && catalogError && <div className="catalog-error" role="alert">{catalogError}<button onClick={loadMore}>{t("Повторить")}</button></div>}
+        {isCatalog && catalogError && <div className="catalog-error" role="alert">{catalogError}<button onClick={() => loadMore(true)}>{t("Повторить")}</button></div>}
         {catalogLoading && (searchingCatalog ? <SearchProgress phase={searchPhase} /> : <div className="catalog-autoload" role="status"><RotateCw className="spin" size={16}/>{t("Загружаем каталог…")}</div>)}
       </>}
         
       </CatalogScene></Suspense>}
     </div>
 
-    </GlassContent>
+    </div>
     {watching !== null && !detail && <div className="watch-progress" role="status"><RotateCw className="spin" size={17} /><div>{t("Ищем доступные плееры")}<span>{all.find(m => m.id === watching)?.title || t("Кинопоиск · {0}", watching)}</span></div></div>}
     {startupDone && notification && <FeedbackToast key={notification.id} notice={notification.feedback} message={notification.message} action={notification.action}
       close={() => setNotification(current => current?.id === notification.id ? null : current)}
@@ -587,7 +593,7 @@ export default function App() {
           : { label: t(availableUpdate.phase === 'ready' ? 'Установить' : 'Открыть релиз'), run: () => api!.applyUpdate() }}
         close={() => setDismissedUpdate(updateKey)}/>}
     {startupDone && searchOpen && <SearchDialog query={searchDraft} change={setSearchDraft} movies={searchSuggestions} busy={indexing} phase={searchPhase} error={indexError} close={closeSearch} choose={chooseSearch} submit={search} allResults={format=>beginSearch(searchDraft,format)} />}
-  </GlassScene>
+  </div>
 }
 
 function RemoteToolbar({ tab, onNavigate, onWatch, onDetails, onRelated, watching, onProvider }: { tab: RemoteTab; onNavigate: (a: string, address?: string) => void; onWatch: () => void; onDetails: () => void; onRelated: () => void; watching: boolean; onProvider: (p: number, t: number) => void }) {

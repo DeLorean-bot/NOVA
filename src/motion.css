@@ -1,5 +1,3 @@
-/* One live optical source for floating controls, separate from readable content. */
-.app.lg-scene { display: block; --lg-foreground: var(--fg); }
 .app-backdrop { display: flex; overflow: hidden; }
 .app-controls { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 .catalog-scene { position: relative; }

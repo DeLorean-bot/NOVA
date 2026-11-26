@@ -16,8 +16,13 @@
 .app-header-row { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 1280px; height: 44px; margin-inline: auto; pointer-events: none; }
 .app-header-row > :not(.header-actions),.app-header .header-actions > button { pointer-events: auto; }
 .app-header .header-actions { pointer-events: none; }
-.app-header::before { content: ''; position: absolute; inset: 0 0 -28px; z-index: -1; pointer-events: none; background: linear-gradient(to bottom,var(--header-fade) 0%,transparent 78%); backdrop-filter: blur(10px); mask-image: linear-gradient(#000 0%,#000 30%,#0008 62%,transparent 100%); opacity: 0; transition: opacity 400ms var(--ease-menu); }
+.app-header::before { content: ''; position: absolute; inset: 0 0 -28px; z-index: -1; pointer-events: none; background: linear-gradient(to bottom,var(--header-fade) 0%,transparent 78%); opacity: 0; transition: opacity 400ms var(--ease-menu); }
 .app-header[data-scrolled='true']::before { opacity: 1; }
+.app[data-catalog-scrolling] .app-header-row :is(.nav-pill, .nav-round),
+.app[data-catalog-scrolling] .player-preview {
+  backdrop-filter: none;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+}
 .global-caption { position: relative; z-index: 7; background: var(--canvas); }
 .kadr-topnav .workspace { position: relative; }
 .kadr-topnav .catalog-content { padding-top: 100px; scroll-padding-top: 100px; }

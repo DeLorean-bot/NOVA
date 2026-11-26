@@ -39,8 +39,14 @@
 .recommendation-strip { scrollbar-width: none; padding-bottom: 0; }
 .recommendation-strip::-webkit-scrollbar { display: none; }
 .poster-hover { background: #0003; transition-duration: 90ms; }
-.poster-hover > .poster-liquid-action { display: flex; flex-direction: column; justify-content: center; gap: 0; width: 44px; min-width: 44px; height: 44px; min-height: 44px; max-width: calc(100% - 24px); padding: 0; border-radius: 16px; background: #ffffff16; backdrop-filter: blur(14px) saturate(1.2); box-shadow: inset 0 0 0 1px #ffffff26,inset 0 1px 0 #ffffff38,0 12px 32px #0005; color: white; transform: scale(.94); transition: transform 180ms cubic-bezier(.25,1,.5,1); }
+.poster-hover > .poster-liquid-action { display: flex; flex-direction: column; justify-content: center; gap: 0; width: 44px; min-width: 44px; height: 44px; min-height: 44px; max-width: calc(100% - 24px); padding: 0; border-radius: 16px; background: #ffffff16; box-shadow: inset 0 0 0 1px #ffffff26,inset 0 1px 0 #ffffff38,0 12px 32px #0005; color: white; transform: scale(.94); transition: transform 180ms cubic-bezier(.25,1,.5,1); }
 .poster-wrap:hover .poster-liquid-action,.poster-button:focus-visible .poster-liquid-action { transform: scale(1); }
+@media (prefers-reduced-transparency: no-preference) and (forced-colors: none) {
+  .app:not([data-catalog-scrolling]) .poster-wrap:hover .poster-liquid-action,
+  .app:not([data-catalog-scrolling]) .poster-button:focus-visible .poster-liquid-action { backdrop-filter: blur(10px) saturate(1.2); }
+}
+.catalog-results > .movie-grid .poster-wrap { content-visibility: auto; }
+.app[data-catalog-scrolling] .catalog-content .poster-wrap { transform: none; transition: none; }
 .poster-liquid-action .material-symbol { --icon-weight: 400; }
 .kadr-topnav .movie-detail-page { background: transparent; border: 0; box-shadow: none; }
 .header-menu { width: 240px; }
@@ -143,10 +149,8 @@
 :is(.upcoming-personal-art,.premiere-art):is(:hover,:focus-visible) .poster-hover { opacity: 1; }
 :is(.upcoming-personal-art,.premiere-art):is(:hover,:focus-visible) .poster-liquid-action { transform: scale(1); }
 .poster-liquid-action { position: relative; isolation: isolate; }
-.poster-liquid-action .poster-liquid-lens.lg-surface { position: absolute; inset: 0; pointer-events: none; border-radius: 16px; background: transparent; visibility: visible; z-index: -1; }
 @media(prefers-reduced-transparency:reduce),(forced-colors:active) {
   .feedback-toast.nl-feedback, .feedback-toast.nl-feedback:hover { background: var(--panel); backdrop-filter: none; }
-  .poster-liquid-action .poster-liquid-lens { display: none; }
 }
 
 .app .header-players { display: flex; justify-content: center; align-items: center; width: 44px; height: 44px; padding: 0; gap: 0; flex: none; }
